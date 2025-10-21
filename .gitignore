@@ -1,0 +1,90 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# 'data' folders #
+data/
+raw-data/
+lookups/
+outputs/
+
+# Always ignore official files #
+################################
+
+*[oO][fF][fF][iI][cC][iI][aA][lL]*
+
+
+# Common text files that may contain data #
+*.[cC][sS][vV]
+*.[tT][xX][tT]
+
+# Excel files #
+*.[xX][lL][sS]*
+
+# SPSS formats #
+*.[sS][aA][vV]
+
+# R data files #
+*.[rR][dD][aA][tT][aA]
+*.[rR][dD][sS]
+
+# parquet files #
+*.[pP][aA][rR][qQ][uU][eE][tT]
+
+# SAS format #
+*.[sS][aA][sS]7[bB][dD][aA][tT]
+
+
+# OpenOffice sheets files #
+###########################
+
+*.[oO][dD][sS]
+
+# Google docs #
+###############
+
+*.[gG][sS][hH][eE][eE][tT]
+
+# db files #
+############
+
+*.[dD][bB]
+*.[sS][qQ][lL][iI][tT][eE]
+
+# feather files #
+#################
+
+*.[fF][eE][aA][tT][hH][eE][rR]
+
+# pkl/pickle files #
+####################
+
+*.[pP][kK][lL]
+*.[pP][iI][cC][kK][lL][eE]
+
+
+# Packages #
+############
+# it's better to unpack these files and commit the raw source
+# git has its own built in compression methods
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+
