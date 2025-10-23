@@ -57,7 +57,7 @@ table(question_mapping$comparability)
 
 question_lookup_info <- question_mapping %>%
   filter(question_type == "Information" | question == "q38")%>% #- Q38 is In general, how well do you feel ... treated as both ppn and info 
-  mutate(question_2024 = if_else(`comparability` %in% c("Tableau","Commentary"),`quest. no. prev year`,""))%>%
+  mutate(question_2024 = if_else(`comparability` %in% c("Dashboard","Commentary"),`quest. no. prev year`,""))%>%
   mutate(response_text = str_replace(response_text,", please write in:",""),
          response_text = str_replace(response_text,"^ ","")) %>% 
   select(question,question_text,weight,response_code,response_text,topic,question_2024)
@@ -81,7 +81,7 @@ table(question_mapping$question_type,useNA = c("always"))
 
 question_lookup_pnn <- question_mapping %>%
   filter(question_type == "Percent positive")%>%
-  mutate(question_2024 = if_else(`comparability` %in% c("Tableau","Commentary"),`quest. no. prev year`,""))%>%
+  mutate(question_2024 = if_else(`comparability` %in% c("Dashboard","Commentary"),`quest. no. prev year`,""))%>%
   mutate(response_text = if_else(grepl("positive",processing) == TRUE, "Positive",if_else(grepl("negative",processing) == TRUE,"Negative","Neutral")))%>%
   select(question,question_text,weight,response_code,response_text,topic,question_2024)
 
