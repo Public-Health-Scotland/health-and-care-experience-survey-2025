@@ -1,0 +1,26 @@
+# Name of file: 00-setup_file_paths.R
+# 
+# Original author(s): Catriona Haddow
+#   
+# Written/run on: Posit Workbench - RStudio R 4.1.2
+# 
+# Description of content: Set up file paths to be used throughout project
+# 
+# Approximate run time: <1 min
+# 
+# Approximate memory usage: 245mib
+
+lookup_path   <- "/conf/bss/pat-exp-surveys/health-and-care/202526/lookups/"
+data_path     <- "/conf/bss/pat-exp-surveys/health-and-care/202526/data/"
+analysis_output_path <- "/conf/bss/pat-exp-surveys/health-and-care/202526/output/analysis_output/"
+weights_path <- "/conf/bss/pat-exp-surveys/health-and-care/202526/output/weights/"
+output_path   <- "/conf/bss/pat-exp-surveys/health-and-care/202526/output/"
+historical_data_path <- "/conf/bss/pat-exp-surveys/health-and-care/202324/output/analysis_output/"
+
+lookup_path_202324   <- "/conf/bss/pat-exp-surveys/health-and-care/202324/lookups/"
+data_path_202324     <- "/conf/bss/pat-exp-surveys/health-and-care/202324/data/"
+analysis_output_path_202324 <- "/conf/bss/pat-exp-surveys/health-and-care/202324/output/analysis_output/"
+weights_path_202324 <- "/conf/bss/pat-exp-surveys/health-and-care/202324/output/weights/"
+output_path_202324   <- "/conf/bss/pat-exp-surveys/health-and-care/202324/output/"
+historical_data_path_202324 <- "/conf/bss/pat-exp-surveys/health-and-care/202122/output/analysis_output/"
+
