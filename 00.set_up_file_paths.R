@@ -10,6 +10,8 @@
 # 
 # Approximate memory usage: 245mib
 
+#CH comment
+
 lookup_path   <- "/conf/bss/pat-exp-surveys/health-and-care/202526/lookups/"
 data_path     <- "/conf/bss/pat-exp-surveys/health-and-care/202526/data/"
 analysis_output_path <- "/conf/bss/pat-exp-surveys/health-and-care/202526/output/analysis_output/"
