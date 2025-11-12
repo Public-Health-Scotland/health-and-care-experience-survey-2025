@@ -88,7 +88,6 @@ question_lookup_pnn <- question_mapping %>%
 #check if the same as before, then save
 hist.file <- readRDS(paste0(lookup_path,"question_lookup_pnn.rds"))
 identical(hist.file,question_lookup_pnn)
-file.remove(paste0(lookup_path,"question_lookup_pnn.rds")) # remove existing file
 saveRDS(question_lookup_pnn, paste0(lookup_path,"question_lookup_pnn.rds"))
 
 question_lookup <- bind_rows(question_lookup_info[question_lookup_info$question != "q38",],question_lookup_pnn)
