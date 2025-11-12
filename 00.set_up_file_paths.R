@@ -17,7 +17,7 @@ data_path     <- "/conf/bss/pat-exp-surveys/health-and-care/202526/data/"
 analysis_output_path <- "/conf/bss/pat-exp-surveys/health-and-care/202526/outputs/analysis_output/"
 weights_path <- "/conf/bss/pat-exp-surveys/health-and-care/202526/outputs/weights/"
 output_path   <- "/conf/bss/pat-exp-surveys/health-and-care/202526/outputs/"
-historical_data_path <- "/conf/bss/pat-exp-surveys/health-and-care/202324/outputs/analysis_output/"
+#historical_data_path <- "/conf/bss/pat-exp-surveys/health-and-care/202324/data/"
 
 lookup_path_202324   <- "/conf/bss/pat-exp-surveys/health-and-care/202324/lookups/"
 data_path_202324     <- "/conf/bss/pat-exp-surveys/health-and-care/202324/data/"
