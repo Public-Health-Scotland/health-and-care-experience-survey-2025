@@ -90,8 +90,12 @@ hist.file <- readRDS(paste0(lookup_path,"question_lookup_pnn.rds"))
 identical(hist.file,question_lookup_pnn)
 saveRDS(question_lookup_pnn, paste0(lookup_path,"question_lookup_pnn.rds"))
 
-question_lookup <- bind_rows(question_lookup_info[question_lookup_info$question != "q38",],question_lookup_pnn)
-
+#CH need to check this works and possibly re-write. Needed to analyse all questions together in aggregate results script.
+question_lookup <- question_lookup_info %>% 
+  filter(question != "q38") %>% 
+  bind_rows(question_lookup_pnn) %>% 
+  rename(response_value = pnn) %>%
+  mutate(response_text_analysis = coalesce(response_value,response_text)) # for aggregate_results.R
 #check if the same as before
 hist.file <- readRDS(paste0(lookup_path,"question_lookup.rds"))
 identical(hist.file,question_lookup)

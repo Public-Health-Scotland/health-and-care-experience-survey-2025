@@ -10,17 +10,12 @@
 # 
 # Approximate memory usage: 7 GiB
 
-#To do:
-#Add analysis of other levels, eg localities. Can this be dynamic depending on SG / PHS?
-#Does the list sizes part belong here?
-#ML CHECK GIT ACCESS####
-
 #Inputs:
 #analysis_output_path,"responses_with_categories.rds"
 #weights_path,"weights_vars.rds"
 #lookup_path,"question_lookup.rds"
 
-#Outputs: #UPDATE!
+#Outputs:
 #"output/analysis_output/responses_longer.rds"
 #"output/temp/forms_completed_list.rds"
 
@@ -30,35 +25,10 @@ source("00.functions.R")
 
 #read in results data####
 responses <- readRDS(paste0(analysis_output_path,"responses_with_categories.rds"))
-
 responses <- responses %>% mutate(scotland = "Scotland") #add new variable for reporting at national level
-table(responses$q09a,useNA = c("always"))
-#add in variables to get 'tick all that apply' totals
-
-responses <- responses %>%
-  rowwise() %>%
-  mutate(q09 = max(q09a,q09b,q09c,q09d,q09e,q09f),
-         q14 = max(q14a,q14b,q14c,q14d,q14e,q14f),
-         q20 = max(q20a,q20b,q20c,q20d,q20e,q20f),
-         q27 = max(q27a,q27b,q27c,q27d,q27e,q27f,q27g,q27h),
-         q28 = max(q28a,q28b,q28c,q28d),
-         q32 = max(q32a,q32b,q32c,q32d,q32e,q32f,q32g,q32h,q32i),
-         q34 = max(q34a,q34b,q34c,q34d,q34e,q34f),
-         q35 = max(q35a,q35b,q35c,q35d,q35e,q35f,q35g,q35h), #ML added q35h 15/2/24
-         q39 = max(q39a,q39b,q39c,q39d,q39e,q39f,q39g,q39h,q39i,q39j,q39k))%>%
-  mutate(across(q09a:q09f,~replace(., q09 != 1,NA)),
-         across(q14a:q14f,~replace(., q14 != 1,NA)),
-         across(q20a:q20f,~replace(., q20 != 1,NA)),
-         across(q27a:q27h,~replace(., q27 != 1,NA)),
-         across(q28a:q28d,~replace(., q28 != 1,NA)),
-         across(q32a:q32i,~replace(., q32 != 1,NA)),
-         across(q34a:q34f,~replace(., q34 != 1,NA)),
-         across(q35a:q35h,~replace(., q35 != 1,NA)), #ML changed 'q35a:q35g' to 'q35a:q35h' 15/2/24
-         across(q39a:q39k,~replace(., q39 != 1,NA))) %>% 
-  ungroup()
 
 #read in weights data####
-weights_vars <- readRDS(paste0(weights_path,"weights_vars.rds"))
+weights_vars <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
 
 #joining by all id variables prevents duplication - that is, creation of patientid_sg.x for example
 responses <- responses %>% 
@@ -71,7 +41,7 @@ responses_longer <- responses %>%
   mutate(response_option = as.character(response_option))
 
 #read in lookup to get weight category
-question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds"))
+question_lookup <- readRDS(paste0(lookup_path_202324,"question_lookup.rds"))
 
 responses_longer <- responses_longer %>% 
   left_join(select(question_lookup,question,response_option,weight),by = c("question","response_option"))
@@ -118,10 +88,12 @@ responses_longer <- responses_longer %>%
   select("patientid",all_of(report_areas),all_of(report_area_wt),question,response_option,eligible_pats)
 
 #check if the same as before, then save new file
-hist.file <- readRDS(paste0(analysis_output_path,"responses_longer.rds"))
-identical(hist.file,responses_longer)
-file.remove(paste0(analysis_output_path,"responses_longer.rds")) # remove existing file #ML 15/02/24 Changed 'lookup_path,"question_lookup_pnn.rds"' to 'analysis_output_path,"responses_longer.rds"'
+hist.file <- readRDS(paste0(analysis_output_path_202324,"responses_longer.rds"))
+all.equal(hist.file,responses_longer)
 saveRDS(responses_longer, paste0(analysis_output_path,"responses_longer.rds"))
+
+check_options <- responses_longer %>% 
+  tabyl(question, response_option) #ch - worth saving this out?
 
 #calculate response rate = completed form count / sample size ####
 forms_completed_list <- lapply(report_areas, function(x) {

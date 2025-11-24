@@ -1,6 +1,4 @@
 ## Written by Catriona Haddow and Martin Leitch
-# November 2023.
-# Adapted from 2021 code by Catriona Haddow and Martin Leitch
 # WIP: November 2025
 # *****************************************
 
@@ -26,7 +24,7 @@ source("00.functions.R")
 #Step 1: Read in contractor data#### 
 #opening final set of unrouted results received from contractor.
 #CH can we get file creation time?
-contractor_data <- read.xlsx(paste0(historical_data_path,"Results from Contractor/Final data/HA23_Data_FINAL_V1.xlsx"), sheet = "RESPONSES")
+contractor_data <- read.xlsx(paste0(data_path_202324,"Results from Contractor/Final data/HA23_Data_FINAL_V1.xlsx"), sheet = "RESPONSES")
 summary_file_name <-"HA23_Data_FINAL_V1.xls"
 
 #variables for file summary
@@ -68,35 +66,36 @@ all.equal(hist.file,SGFile)
 #Save out anonymised version of unvalidated data for SG as csv.
 #write_excel_csv(SGFile, "data/Results from Contractor/Final data/anonymised_unvalidated_response_data_for_SG.csv") 
 
-#remove SGFile from Environment window
-rm(SGFile)
+rm(SGFile)#remove SGFile from Environment window
 
 #Step 2: Read in reformatted final results####
 
 contractor_data <- readRDS(paste0(data_path_202324,"Results from Contractor/Final data/Final_unrouted_data.rds"))
+contractor_data <- contractor_data %>% 
+  select(-c(q18,q26)) #Drop the comments columns which are all blank
 
-#This outputs the frequencies of all the question responses
+#Outputs the frequencies of all the question responses
 pre_validation_freq <- apply(contractor_data[questions], MARGIN=2, table)
 
 #Step 3: Apply validation rules####
 
 #Rule 1: FOR QH ONLY: ####
 #'Tick one box only’ questions: if respondent selects more than one box, then question is cleared. The majority of questions are this type, 
-#'so it’s easier to list the questions that this does not apply to: Q11, Q20, Q29, Q30, Q36, Q37 and Q40.
+#so it’s easier to list the questions that this does not apply to: Q11, Q20, Q29, Q30, Q36, Q37 and Q40.
 
 #===
 #Rule 2: When did you last contact the GP Practice named on the enclosed letter?####
-#Set up rule table
-rule_table <- data.frame("rule" = c("Rule 2a"),
+rule_table <- data.frame("rule" = c("Rule 2a"), #Set up rule table
                          "rule_label" = c("If Q1 is blank, and Q2 is not blank – set Q1 to 1"),
                          "value" = sum(is.na(contractor_data$q01) & !is.na(contractor_data$q02),na.rm = TRUE))
 
-Rule2a_pre <- tabyl(contractor_data,q01,q02) #Check frequencies before implementing rule
-
+Rule02a_pre <- lapply("q02", crosstabs_f,"q01")  #Frequencies before implementing rule
+names(Rule02a_pre) <- "q02"
 contractor_data <- contractor_data %>% 
   mutate(q01 = if_else(is.na(q01) & !is.na(q02),1,q01))# implement rule
 
-Rule2a_post <- tabyl(contractor_data,q01,q02) #Check frequencies after implementing rule
+Rule02a_post <- lapply("q02", crosstabs_f,"q01") #Check frequencies after implementing rule
+names(Rule02a_post) <- "q02"
 
 ## b > If Q1 <> 1 and Q2 to Q17 are not all blank – set Q2 to Q17 to blank.#### Note that NA needs to be explicit, as NA <>!= 1 
 q2toq17 <- subset_qs(2,17)
@@ -106,17 +105,14 @@ rule_table <- rule_table %>%
           "rule_label" = c("If Q1 <> 1 and Q2 to Q17 are not all blank – set Q2 to Q17 to blank"),
           "value" = sum(ifelse((contractor_data$q01 !=1|is.na(contractor_data$q01)) & rowAny(contractor_data[q2toq17]),1,0),na.rm = TRUE))
 
-#Frequencies before implementing rule
-Rule2b_pre <- lapply(q2toq17, crosstabs_f,"q01")  
-names(Rule2b_pre) <- q2toq17
+Rule02b_pre <- lapply(q2toq17, crosstabs_f,"q01")  #Frequencies before implementing rule
+names(Rule02b_pre) <- q2toq17
 
-#Implement rule:
-contractor_data <- contractor_data %>% 
+contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q2toq17),~ case_when(q01 != 1 ~ NA,is.na(q01) ~ NA,TRUE ~ .)))
 
-#Frequencies after implementing rule
-Rule2b_post <- lapply(q2toq17, crosstabs_f,"q01")  
-names(Rule2b_post) <- q2toq17
+Rule02b_post <- lapply(q2toq17, crosstabs_f,"q01")  #Frequencies after implementing rule
+names(Rule02b_post) <- q2toq17
 
 #===
 #Rule 3: The last time you needed an appointment with your general practice, what kind of appointment…?####
@@ -128,49 +124,64 @@ rule_table <- rule_table %>%
           "rule_label" = c("If Q6 = 7 (or blank) and Q7 to Q9 are not all blank – set Q7 to Q9 to blank"),
           "value" = sum(ifelse(contractor_data$q06 %in% c(7,NA) & rowAny(contractor_data[q7toq9]),1,0)))
 
-Rule3_pre <- lapply(q7toq9, crosstabs_f,"q06")  #Check frequencies before implementing rule
-names(Rule3_pre) <- q7toq9
+Rule03_pre <- lapply(q7toq9, crosstabs_f,"q06")  #Check frequencies before implementing rule
+names(Rule03_pre) <- q7toq9
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q7toq9),~ case_when(q06 %in% c(7,NA) ~ NA,TRUE ~ .)))
 
-Rule3_post <- lapply(q7toq9, crosstabs_f,"q06")  #Check frequencies after implementing rule
-names(Rule3_post) <- q7toq9
+Rule03_post <- lapply(q7toq9, crosstabs_f,"q06")  #Check frequencies after implementing rule
+names(Rule03_post) <- q7toq9
 #===
 #Rule 4: Were you satisfied with the appointment you were offered?####
-#>	If Q8 = 1 and any of Q9 is not blank – set Q9 to blank # this is different to before, now 84 extra records
+#>	If Q8 = 1 and any of Q9 is not blank – set Q9 to blank # 
 q9 <-subset_qs(9,9)
 rule_table <- rule_table %>% 
   add_row("rule" = c("Rule 4"),
           "rule_label" = c("If Q8 = 1 and any of Q9 is not blank – set Q9 to blank"),
           "value" = sum(ifelse(contractor_data$q08 ==1 & rowAny(contractor_data[q9]),1,0),na.rm = TRUE))
 
-Rule4_pre <- lapply(q9, crosstabs_f,"q08")  #Check frequencies before implementing rule
-names(Rule4_pre) <- q9
+Rule04_pre <- lapply(q9, crosstabs_f,"q08")  #Check frequencies before implementing rule
+names(Rule04_pre) <- q9
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q9),~ case_when(q08 == 1 ~ NA,TRUE ~ .)))
 
-Rule4_post <- lapply(q9, crosstabs_f,"q08")  #Check frequencies after implementing rule
-names(Rule4_post) <- q9
+Rule04_post <- lapply(q9, crosstabs_f,"q08")  #Check frequencies after implementing rule
+names(Rule04_post) <- q9
 
 #===
 #Rule 5: The last time you needed to see or speak to a doctor or nurse from your GP Practice quite urgently, how long did you have to wait? ####
-## If Q10 = 1, 2 or 4 or blank and Q11 is not blank – set Q11 to blank.
+## 5 a If Q10 = 1, 2 or 4 and Q11 is not blank – set Q11 to blank.
 
 rule_table <- rule_table %>% 
-  add_row("rule" = c("Rule 5"),
+  add_row("rule" = c("Rule 5a"),
           "rule_label" = c("If Q10 = 1, 2 or 4 or blank and Q11 is not blank – set Q11 to blank."),
-          "value" = sum(ifelse(contractor_data$q10 %in% c(1,2,4,NA) & !is.na(contractor_data$q11),1,0)))
+          "value" = sum(ifelse(contractor_data$q10 %in% c(1,2,4) & !is.na(contractor_data$q11),1,0)))
 
-Rule5_pre <- tabyl(contractor_data,q10,q11)  #Check frequencies before implementing rule
-
+Rule05a_pre <- lapply("q10", crosstabs_f,"q11")   #Check frequencies before implementing rule
+names(Rule05a_pre) <- "q10"
 contractor_data <- contractor_data %>% #Implement rule:
-  mutate(q11= case_when(q10 %in% c(1,2,4,NA) ~ NA,TRUE ~ q11))
+  mutate(q11= case_when(q10 %in% c(1,2,4) ~ NA,TRUE ~ q11))
 
-Rule5_post <- tabyl(contractor_data,q10,q11)  #Check frequencies after implementing rule
+Rule05a_post <- lapply("q10", crosstabs_f,"q11")   #Check frequencies after implementing rule
+names(Rule05a_post) <- "q10"
 
+## 5 b > If Q10 is blank and Q11 is not blank – set Q10 to 3.
 #===
+
+rule_table <- rule_table %>% 
+  add_row("rule" = c("Rule 5b"),
+          "rule_label" = c("If Q10 is blank and Q11 is not blank – set Q10 to 3."),
+          "value" = sum(ifelse(is.na(contractor_data$q10) & !is.na(contractor_data$q11),1,0)))
+
+Rule05b_pre <- lapply("q10", crosstabs_f,"q11")   #Check frequencies before implementing rule
+names(Rule05b_pre) <- "q10"
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q10= case_when(is.na(q10) & !is.na(q11) ~ 3,TRUE ~ q10))
+
+Rule05b_post <- lapply("q10", crosstabs_f,"q11")   #Check frequencies after implementing rule
+names(Rule05b_post) <- "q10"
 #Rule 6: The last time you received treatment or advice at your GP practice in the last 12 months, what did you receive treatment or advice for?####
 
 q14atoq14e <-c("q14a","q14b","q14c","q14d","q14e")
@@ -179,8 +190,8 @@ rule_table <- rule_table %>%
           "rule_label" = c("If Q14f = 1 and any of Q14a to Q14e = 1 – set Q14f to blank."),
           "value" = sum(if_else(contractor_data$q14f ==1 & rowAny(contractor_data[q14atoq14e]),1,0),na.rm = TRUE))
 
-Rule6a_pre <- lapply(q14atoq14e, crosstabs_f,"q14f")  #Check frequencies before implementing rule
-names(Rule6a_pre) <-q14atoq14e
+Rule06a_pre <- lapply(q14atoq14e, crosstabs_f,"q14f")  #Check frequencies before implementing rule
+names(Rule06a_pre) <-q14atoq14e
 
 # contractor_data <- contractor_data %>% #Implement rule:
 #   mutate(across(all_of(q14atoq14e),~ case_when( == 1 ~ NA,TRUE ~ .)))
@@ -188,10 +199,10 @@ names(Rule6a_pre) <-q14atoq14e
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(q14f = case_when(rowAny(contractor_data[q14atoq14e]) ~ NA,TRUE ~ q14f))
 
-Rule6a_post <- lapply(q14atoq14e, crosstabs_f,"q14f")  #Check frequencies after implementing rule
-names(Rule6a_post) <- q14atoq14e
+Rule06a_post <- lapply(q14atoq14e, crosstabs_f,"q14f")  #Check frequencies after implementing rule
+names(Rule06a_post) <- q14atoq14e
 
-##b > If Q14f = 1 and Q15 to Q17 are not all blank – set Q15 to Q17 to blank. #not the same
+##b > If Q14f = 1 and Q15 to Q17 are not all blank – set Q15 to Q17 to blank. 
 
 q15toq17 <-subset_qs(15,17)
 
@@ -200,14 +211,14 @@ rule_table <- rule_table %>%
           "rule_label" = c("If Q14f = 1 and Q15 to Q17 are not all blank – set Q15 to Q17 to blank."),
           "value" = sum(if_else(contractor_data$q14f ==1 & rowAny(contractor_data[q15toq17]),1,0),na.rm = TRUE))
 
-Rule6b_pre <- lapply(q15toq17, crosstabs_f,"q14f")  #Check frequencies before implementing rule
-names(Rule6b_pre) <-q15toq17
+Rule06b_pre <- lapply(q15toq17, crosstabs_f,"q14f")  #Check frequencies before implementing rule
+names(Rule06b_pre) <-q15toq17
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q15toq17),~ case_when(q14f == 1 ~ NA,TRUE ~ .)))
 
-Rule6b_post <- lapply(q15toq17, crosstabs_f,"q14f")  #Check frequencies after implementing rule
-names(Rule6b_post) <- q15toq17
+Rule06b_post <- lapply(q15toq17, crosstabs_f,"q14f")  #Check frequencies after implementing rule
+names(Rule06b_post) <- q15toq17
 
 #--
 ## c > If none of Q14a-e = 1 then set Q15 to Q17 to blank.
@@ -220,14 +231,14 @@ rule_table <- rule_table %>%
 contractor_data <- contractor_data %>% 
   mutate(q14atoq14e_any = case_when(if_any(all_of(q14atoq14e)) == 1 ~ 1,TRUE ~ 0))
 
-Rule6c_pre <- lapply(q15toq17, crosstabs_f,"q14atoq14e_any")  #Check frequencies before implementing rule
-names(Rule6c_pre) <-q15toq17
+Rule06c_pre <- lapply(q15toq17, crosstabs_f,"q14atoq14e_any")  #Check frequencies before implementing rule
+names(Rule06c_pre) <-q15toq17
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q15toq17),~ case_when(q14atoq14e_any == 0 ~ NA,TRUE ~ .)))
 
-Rule6c_post <- lapply(q15toq17, crosstabs_f,"q14atoq14e_any")  #Check frequencies after implementing rule
-names(Rule6c_post) <- q15toq17
+Rule06c_post <- lapply(q15toq17, crosstabs_f,"q14atoq14e_any")  #Check frequencies after implementing rule
+names(Rule06c_post) <- q15toq17
 
 contractor_data <- contractor_data %>% select(-q14atoq14e_any) #drop helper variable
   
@@ -241,14 +252,14 @@ rule_table <- rule_table %>%
           "rule_label" = c("If Q19 = 2 and Q20 to Q25 are not all blank – set Q20 to Q25 to blank."),
           "value" = sum(ifelse(contractor_data$q19 ==2 & rowAny(contractor_data[q20toq25]),1,0),na.rm = TRUE))
 
-Rule7a_pre <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies before implementing rule
-names(Rule7a_pre) <-q20toq25
+Rule07a_pre <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies before implementing rule
+names(Rule07a_pre) <-q20toq25
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q20toq25),~ case_when(q19 == 2 ~ NA,TRUE ~ .)))
 
-Rule7a_post <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies after implementing rule
-names(Rule7a_post) <- q20toq25
+Rule07a_post <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies after implementing rule
+names(Rule07a_post) <- q20toq25
 
 #--
 ## 7b > If Q19 is blank and Q20 to Q25 are not all blank – set Q19 to 1.
@@ -257,14 +268,14 @@ rule_table <- rule_table %>%
           "rule_label" = c("If Q19 is blank and Q20 to Q25 are not all blank – set Q19 to 1."),
           "value" = sum(ifelse(is.na(contractor_data$q19) & rowAny(contractor_data[q20toq25]),1,0),na.rm = TRUE))
 
-Rule7b_pre <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies before implementing rule
-names(Rule7b_pre) <-q20toq25
+Rule07b_pre <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies before implementing rule
+names(Rule07b_pre) <-q20toq25
 
 contractor_data <- contractor_data %>% #Implement rule:
-  mutate(across(all_of(q20toq25),~ case_when(is.na(q19) ~ NA,TRUE ~ .)))
+  mutate(q19 = case_when(is.na(contractor_data$q19) & rowAny(contractor_data[q20toq25]) ~ 1, TRUE ~ q19))
 
-Rule7b_post <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies after implementing rule
-names(Rule7b_post) <- q20toq25
+Rule07b_post <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies after implementing rule
+names(Rule07b_post) <- q20toq25
 
 #===
 #Rule 8: In the past 12 months, have you had any help or support with everyday living?####
@@ -379,14 +390,14 @@ rule_table <- rule_table %>%
           "value" = sum(ifelse(contractor_data$q33  %in% c(6,NA) & rowAny(contractor_data[q34toq37]),1,0),na.rm = TRUE))
 
 
-Rule9_pre <- lapply(q34toq37, crosstabs_f,"q33")  #Check frequencies before implementing rule
-names(Rule9_pre) <-q34toq37
+Rule09_pre <- lapply(q34toq37, crosstabs_f,"q33")  #Check frequencies before implementing rule
+names(Rule09_pre) <-q34toq37
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q34toq37),~ case_when(q33 %in% c(6,NA) ~ NA,TRUE ~ .)))
 
-Rule9_post <- lapply(q34toq37, crosstabs_f,"q33")  #Check frequencies after implementing rule
-names(Rule9_post) <- q34toq37
+Rule09_post <- lapply(q34toq37, crosstabs_f,"q33")  #Check frequencies after implementing rule
+names(Rule09_post) <- q34toq37
 
 #===
 #Rule 10.	Do you have any of the following?####
@@ -408,7 +419,7 @@ contractor_data <- contractor_data %>% #Implement rule:
   mutate(q39j= case_when(rowAll(contractor_data[q39]) & !is.na(contractor_data$q39jOther) ~ 1, TRUE ~ q39j))
 
 Rule10a_post <- lapply(q39, crosstabs_f,"q39jOther_text")  #Check frequencies after implementing rule
-names(Rule10_post) <- q39
+names(Rule10a_post) <- q39
 
 contractor_data <- contractor_data %>% #Drop helper variable
   select(-q39jOther_text)
@@ -420,153 +431,185 @@ rule_table <- rule_table %>%
           "rule_label" = "If any of Q39a to Q39j = 1 and Q39k = 1 – set Q39k to blank",
           "value" = sum(if_else(rowAny(contractor_data[q39atoq39j]) & contractor_data$q39k == 1,1,0),na.rm = TRUE))
 
+Rule10b_pre <- lapply(q39atoq39j, crosstabs_f,"q39k")  #Check frequencies before implementing rule
+names(Rule10b_pre) <-q39atoq39j
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q39k= case_when(rowAny(contractor_data[q39atoq39j]) ~ NA, TRUE ~ q39k))
+
+Rule10b_post <- lapply(q39atoq39j, crosstabs_f,"q39k")  #Check frequencies after implementing rule
+names(Rule10b_post) <- q39atoq39j
 #===
 #Rule 11: Which of the following best describes your sexual orientation? #### 
-##> If Q42 = 0 and Q42 text box (q42Other) is not blank then q42 = 4.
+##> If Q42 is blank and Q42 text box (q42Other) is not blank then q42 = 4.
+rule_table <- rule_table %>% 
+  add_row("rule" = c("Rule 11"),
+          "rule_label" = "If Q42 is blank and Q42 text box (q42Other) is not blank then q42 = 4",
+          "value" = sum(if_else(is.na(contractor_data$q42) & !is.na(contractor_data$q42Other),1,0),na.rm = TRUE))
 
-Rule11  <- ifelse(contractor_data$q42 == 0 & (!(is.na(contractor_data$q42Other))),1,0)
+contractor_data <- contractor_data %>% #Add helper variable
+  mutate(q42Other_text = case_when(is.na(contractor_data$q42Other) ~ "No text",TRUE ~ "Text"))
 
-#Implement rule
-contractor_data$q42[contractor_data$q42 == 0 & (!(is.na(contractor_data$q42Other)))] <- 4
-#Check frequencies after implementing rule
-table(contractor_data$q42)
+Rule11_pre <- lapply("q42", crosstabs_f,"q42Other_text")  #Check frequencies before implementing rule
+names(Rule11_pre) <-"q42"
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q42= case_when(is.na(contractor_data$q42) & !is.na(contractor_data$q42Other) ~ 4, TRUE ~ q42))
+
+Rule11_post <- lapply("q42", crosstabs_f,"q42Other_text")  #Check frequencies after implementing rule
+names(Rule11_post) <- "q42"
+
+contractor_data <- contractor_data %>% select(-q42Other_text) #Drop helper variable
 
 #===
 #Rule 12: What best describes your ethnic group? Please tick one box only#### 
-##> If Q43 = 0 and Q43 text box (q43Other) is not blank then q43 = 6.
-Rule12  <- ifelse(contractor_data$q43 == 0 & (!(is.na(contractor_data$q43Other))),1,0)
+##> If Q43 is blank and Q43 text box (q43Other) is not blank then q43 = 6.
 
-#Implement rule
-contractor_data$q43[contractor_data$q43 == 0 & (!(is.na(contractor_data$q43Other)))] <- 6
-#Check frequencies after implementing rule
-table(contractor_data$q43)
+rule_table <- rule_table %>% 
+  add_row("rule" = c("Rule 12"),
+          "rule_label" = "If Q43 is blank and Q43 text box (q43Other) is not blank then q43 = 6",
+          "value" = sum(if_else(is.na(contractor_data$q43) & !is.na(contractor_data$q43Other),1,0),na.rm = TRUE))
+
+contractor_data <- contractor_data %>% #Add helper variable
+  mutate(q43Other_text = case_when(is.na(contractor_data$q43Other) ~ "No text",TRUE ~ "Text"))
+
+Rule12_pre <- lapply("q43", crosstabs_f,"q43Other_text")  #Check frequencies before implementing rule
+names(Rule12_pre) <-"q43"
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q43= case_when(is.na(contractor_data$q43) & !is.na(contractor_data$q43Other) ~ 6, TRUE ~ q43))
+
+Rule12_post <- lapply("q43", crosstabs_f,"q43Other_text")  #Check frequencies after implementing rule
+names(Rule12_post) <- "q43"
+
+contractor_data <- contractor_data %>% select(-q43Other_text) #Drop helper variable
 
 #===
 #Rule 13: What religion, religious denomination or body do you belong to? #### 
-##> If Q44 = 0 and Q44 text box (q44Other) is not blank then q44 = 11.
-Rule13  <- ifelse(contractor_data$q44 == 0 & (!(is.na(contractor_data$q44Other))),1,0)
+##> If Q44 is blank and Q44 text box (q44Other) is not blank then q44 = 11.
+rule_table <- rule_table %>% 
+  add_row("rule" = c("Rule 13"),
+          "rule_label" = "If Q44 is blank and Q44 text box (q44Other) is not blank then q44 = 11",
+          "value" = sum(if_else(is.na(contractor_data$q44) & !is.na(contractor_data$q44Other),1,0),na.rm = TRUE))
 
-#Implement rule
-contractor_data$q44[contractor_data$q44 == 0 & (!(is.na(contractor_data$q44Other)))] <- 11
+contractor_data <- contractor_data %>% #Add helper variable
+  mutate(q44Other_text = case_when(is.na(contractor_data$q44Other) ~ "No text",TRUE ~ "Text"))
+
+Rule13_pre <- lapply("q44", crosstabs_f,"q44Other_text")  #Check frequencies before implementing rule
+names(Rule13_pre) <-"q44"
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q44= case_when(is.na(contractor_data$q44) & !is.na(contractor_data$q44Other) ~ 11, TRUE ~ q44))
+
+Rule13_post <- lapply("q44", crosstabs_f,"q44Other_text")  #Check frequencies after implementing rule
+names(Rule13_post) <- "q44"
+
+contractor_data <- contractor_data %>% select(-q44Other_text) #Drop helper variable
 
 #This outputs the frequencies of all the question responses
 post_validation_freq <- apply(contractor_data[questions], MARGIN=2, table)
 
+#TATA Rule: Apply Tick all that apply processing rule. ####
+#Add in variables to get 'tick all that apply' totals 
+#Blanks in TATA variables should be set to "No" (0) unless none of the response options were ticked, in which case all response options should be set to NA.
+
+contractor_data <- contractor_data %>%
+  mutate(q09 = case_when(rowAny(across(all_of(subset_qs(9,9))))~ 1, TRUE ~ 0), #if any of the q9 questions are not zero or NA, then q09 (total) = 1, else it is 0
+         q14 = case_when(rowAny(across(all_of(subset_qs(14,14)))) ~ 1,TRUE ~ NA), 
+         q20 = case_when(rowAny(across(all_of(subset_qs(20,20)))) ~ 1,TRUE ~ NA), 
+         q27 = case_when(rowAny(across(all_of(subset_qs(27,27)))) ~ 1,TRUE ~ NA), 
+         q28 = case_when(rowAny(across(all_of(subset_qs(28,28)))) ~ 1,TRUE ~ NA),
+         q32 = case_when(rowAny(across(all_of(subset_qs(32,32)))) ~ 1,TRUE ~ NA), 
+         q34 = case_when(rowAny(across(all_of(subset_qs(34,34)))) ~ 1,TRUE ~ NA), 
+         q35 = case_when(rowAny(across(all_of(subset_qs(35,35)))) ~ 1,TRUE ~ NA),
+         q39 = case_when(rowAny(across(all_of(subset_qs(39,39)))) ~ 1,TRUE ~ NA)) %>% 
+  mutate(across(all_of(subset_qs(9,9)), function(x) if_else(q09 == 1, replace_na(x,0),x)), #if q09 (total) is 1, recode all of the q9 questions from NA to 0
+         across(all_of(subset_qs(14,14)), function(x) if_else(q14 == 1, replace_na(x,0),x)),
+         across(all_of(subset_qs(20,20)), function(x) if_else(q20 == 1, replace_na(x,0),x)),
+         across(all_of(subset_qs(27,27)), function(x) if_else(q27 == 1, replace_na(x,0),x)),
+         across(all_of(subset_qs(28,28)), function(x) if_else(q28 == 1, replace_na(x,0),x)),
+         across(all_of(subset_qs(32,32)), function(x) if_else(q32 == 1, replace_na(x,0),x)),
+         across(all_of(subset_qs(34,34)), function(x) if_else(q34 == 1, replace_na(x,0),x)),
+         across(all_of(subset_qs(35,35)), function(x) if_else(q35 == 1, replace_na(x,0),x)),
+         across(all_of(subset_qs(39,39)), function(x) if_else(q39 == 1, replace_na(x,0),x)))
+
 #Create rule summary####
-rule_tables <- c("Rule2a_pre","Rule2a_post","Rule2b_pre","Rule2b_post","Rule3_pre","Rule3_post",
-                 "Rule4_pre","Rule4_post","Rule5_pre","Rule5_post",
-                 "Rule6a_pre","Rule6a_post","Rule6b_pre","Rule6b_post", "Rule6c_pre","Rule6c_post",
-                 "Rule7a_pre","Rule7a_post","Rule7b_pre","Rule7b_post",
-                 "Rule8a_pre","Rule8a_post","Rule8b_pre","Rule8b_post", "Rule8c_pre","Rule8c_post",
-                 "Rule9_pre","Rule9_post","Rule10a_pre","Rule10a_post", "Rule10b_pre","Rule10b_post",
-                 "Rule11_pre","Rule11_post","Rule12_pre","Rule12_post", "Rule13_pre","Rule13_post")
-                 
-rule_list <- list(Rule2b_pre,Rule2b_post,Rule3_pre,Rule3_post)
 
-#save out rules output
+# Get list of Rules objects"
+rule_list <- sort(c(ls(pattern = "^Rule.*pre"),ls(pattern = "^Rule.*post")))
 
-write_out_list_f <- function(x,wb) {  # function to write list of tables to single excel sheet
+write_out_list_f <- function(x) {  # function to write list of tables to single excel sheet
   curr_row <- 1
 for(i in seq_along(x)) {
-  writeData(wb, deparse(substitute(x)),names(x)[i], startCol = 1, startRow = curr_row)
-  writeData(wb, deparse(substitute(x)),x[[i]], startCol = 1, startRow = curr_row+1)
+  writeData(template, deparse(substitute(x)),names(x)[i], startCol = 1, startRow = curr_row)
+  writeData(template, deparse(substitute(x)),x[[i]], startCol = 1, startRow = curr_row+1)
   curr_row <- curr_row + nrow(x[[i]]) + 2
 }
 }
 
-for (x in rule_list) {  #this does not work
-  write_out_list_f
-}
-
-saveWorkbook(wb, "outputs/analysis_output/rules_output.xlsx",overwrite=TRUE)
-write_out_list_f(Rule2b_pre)
-
-write.xlsx(rule_tables, file = "outputs/analysis_output/rules_results.xlsx")
-
 ###########################################################################################################################################
 #Complete template####
-template <- loadWorkbook(paste0("outputs/analysis_output/file_overview_template.xlsx"))
-for (sheet in rule_tables) {
-  addWorksheet(template, sheet)
-}
+template <- loadWorkbook(paste0(analysis_output_path,"file_overview_template.xlsx"))
+for (sheet in rule_list) {
+  addWorksheet(template, sheet)}
+
+# for (sheet in rule_list) {   #this doesn't work! there is a longform below
+#   write_out_list_f(sheet)}
+#lapply(rule_list,write_out_list_f) #this doesn't work! there is a longform below
+write_out_list_f(post_validation_freq)
+write_out_list_f(pre_validation_freq)
+write_out_list_f(Rule02a_post)
+write_out_list_f(Rule02a_pre)
+write_out_list_f(Rule02b_post)
+write_out_list_f(Rule02b_pre)
+write_out_list_f(Rule03_post)
+write_out_list_f(Rule03_pre)
+write_out_list_f(Rule04_post)
+write_out_list_f(Rule04_pre)
+write_out_list_f(Rule05a_post)
+write_out_list_f(Rule05a_pre)
+write_out_list_f(Rule05b_post)
+write_out_list_f(Rule05b_pre)
+write_out_list_f(Rule06a_post)
+write_out_list_f(Rule06a_pre)
+write_out_list_f(Rule06b_post)
+write_out_list_f(Rule06b_pre)
+write_out_list_f(Rule06c_post)
+write_out_list_f(Rule06c_pre)
+write_out_list_f(Rule07a_post)
+write_out_list_f(Rule07a_pre)
+write_out_list_f(Rule07b_post)
+write_out_list_f(Rule07b_pre)
+write_out_list_f(Rule09_post)
+write_out_list_f(Rule09_pre)
+write_out_list_f(Rule10a_post)
+write_out_list_f(Rule10a_pre)
+write_out_list_f(Rule10b_post)
+write_out_list_f(Rule10b_pre)
+write_out_list_f(Rule11_post)
+write_out_list_f(Rule11_pre)
+write_out_list_f(Rule12_post)
+write_out_list_f(Rule12_pre)
+write_out_list_f(Rule13_post)
+write_out_list_f(Rule13_pre)
+
 writeData(template, "summary", today(), startCol = 2, startRow = 4, colNames = FALSE)
 writeData(template, "summary", summary_file_name, startCol = 2, startRow = 5, colNames = FALSE)
 writeData(template, "summary", summary_record_count, startCol = 2, startRow = 8, colNames = FALSE)
 writeData(template, "summary", summary_duplicates, startCol = 2, startRow = 10, colNames = FALSE)
-write_out_list_f(pre_validation_freq,template)
-writeData(template,"rules_summary",rules_summary, startCol = 2, startRow = 1, colNames = FALSE)
-
-#write_out_list_f(Rule2a_pre,template)
-#write_out_list_f(Rule2a_post,template)
-write_out_list_f(Rule2b_pre,template)
-write_out_list_f(Rule2b_post,template)
-write_out_list_f(Rule3_pre,template)
-write_out_list_f(Rule3_post,template)
-write_out_list_f(Rule4_pre,template)
-write_out_list_f(Rule4_post,template)
-#write_out_list_f(Rule5_pre,template)
-#write_out_list_f(Rule5_post,template)
-write_out_list_f(Rule6a_pre,template)
-write_out_list_f(Rule6a_post,template)
-write_out_list_f(Rule6b_pre,template)
-write_out_list_f(Rule6b_post,template)
-write_out_list_f(Rule6c_pre,template)
-write_out_list_f(Rule6c_post,template)
-write_out_list_f(Rule7a_pre,template)
-write_out_list_f(Rule7a_post,template)
-write_out_list_f(Rule7b_pre,template)
-# write_out_list_f(Rule8b_post,template)
-# write_out_list_f(Rule8c_pre,template)
-# write_out_list_f(Rule8c_post,template)
-# write_out_list_f(Rule8d_pre,template)
-# write_out_list_f(Rule8d_post,template)
-# write_out_list_f(Rule8e_pre,template)
-# write_out_list_f(Rule8e_post,template)
-# write_out_list_f(Rule8f_pre,template)
-# write_out_list_f(Rule8f_post,template)
-# write_out_list_f(Rule8g_pre,template)
-# write_out_list_f(Rule8g_post,template)
-write_out_list_f(Rule9_pre,template)
-write_out_list_f(Rule9_post,template)
-write_out_list_f(Rule10a_pre,template)
-write_out_list_f(Rule10b_post,template)
-write_out_list_f(Rule11_pre,template)
-write_out_list_f(Rule11_post,template)
-write_out_list_f(Rule12_pre,template)
-write_out_list_f(Rule12_post,template)
-write_out_list_f(Rule13_pre,template)
-write_out_list_f(Rule13_post,template)
-saveWorkbook(template, paste0("outputs/analysis_output/","populated_file_overview.xlsx"), overwrite =TRUE)
-
-
-#Drop the comments columns which are all blank
-contractor_data$q18 <- NULL
-contractor_data$q26 <- NULL
-
-#q32h, q39j, q42d, q43 and q44 are other/another options with write in boxes.
+writeData(template,"rules_summary",rule_table, startCol = 1, startRow = 2, colNames = TRUE)
+saveWorkbook(template, paste0(analysis_output_path,"populated_file_overview.xlsx"), overwrite =TRUE)
 
 #check if the same as before
-hist.file <- readRDS("data/Results/data_Validated_results.rds")
-identical(hist.file,contractor_data)
+hist.file <- readRDS(paste0(data_path,"results/data_Validated_results.rds"))
+all.equal(hist.file,contractor_data)
 
 #Save outfile####
-saveRDS(contractor_data, file="data/Results/data_Validated_results.rds")
+saveRDS(contractor_data, file=paste0(data_path,"results/data_Validated_results.rds"))
+#write.xlsx(contractor_data, file="data/results/data_Validated_results.xlsx")
 
-#Save outfile as xlsx####
-write.xlsx(contractor_data, file="data/Results/data_Validated_results.xlsx")
-
-#29/01/2024 then 06/02/2024 Create anonymised version of validated results for SG:
-SGFile_Validated_Prov <- contractor_data
-
-#Remove PSID(QH patient identifier) & PatientID (PHS patient identifier)
-SGFile_Validated_Prov$qh_psid <- NULL
-SGFile_Validated_Prov$patientid <- NULL
-
-#Save out anonymised version of unvalidated data for SG
-#check if the same as before
-hist.file <- readRDS("data/Results/anonymised_data_Validated_results_for_SG.rds")
-identical(hist.file,SGFile_Validated_Prov)
-saveRDS(SGFile_Validated_Prov, file="data/Results/anonymised_data_Validated_results_for_SG.rds")
-
-#Save out anonymised version of validated data for SG as csv
-write_excel_csv(SGFile_Validated_Prov, "data/Results/anonymised_data_Validated_results_for_SG.csv") 
+#Create and save out anonymised version of validated results for SG:
+# SGFile_Validated_Prov <- contractor_data %>% 
+#   select(-c(qh_psid,patientid)) #Remove PSID(QH patient identifier) & PatientID (PHS patient identifier)
+# saveRDS(SGFile_Validated_Prov, file="data/Results/anonymised_data_Validated_results_for_SG.rds")
+# write_csv(SGFile_Validated_Prov, "data/Results/anonymised_data_Validated_results_for_SG.csv") 
