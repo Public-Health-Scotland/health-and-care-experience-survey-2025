@@ -27,6 +27,8 @@
 ##"output/analysis_output/info_questions_sg.xlsx"
 ##"output/analysis_output/info_output_full.rds")
 
+#to do: there is something wrong with the coding of NA responses - see question 4 response option 3
+
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
 source("00.functions.R")
@@ -34,7 +36,6 @@ source("00.functions.R")
 #read in results longer data####
 responses_longer <- readRDS(paste0(analysis_output_path,"responses_longer.rds"))
 
-#CPES_lookup <- readRDS("/conf/bss/CPES/2024/Data/Lookup/question_lookup.rds")
 question_lookup_info <- readRDS(paste0(lookup_path_202324,"question_lookup_info.rds")) #read in lookup for info questions
 question_lookup_pnn <- readRDS(paste0(lookup_path_202324,"question_lookup_pnn.rds")) #read in lookup for pnn questions
 question_lookup <- question_lookup_info %>% 
@@ -45,17 +46,26 @@ question_lookup <- question_lookup_info %>%
 responses_longer <- responses_longer %>% 
   left_join(question_lookup %>% select(question,response_option,response_text),by = c("question","response_option")) 
 
-hist.file <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
+#hist.file <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
 #Need to keep eligible patients for the calculation of the fpc?
 responses_wider_nat <- responses_longer %>% 
-  pivot_wider(id_cols = c(patientid,all_of(report_areas)),names_from = question,values_from = c(response_text,nat_wt))
+  pivot_wider(id_cols = c(patientid,all_of(report_areas),eligible_pats),names_from = question,values_from = c(response_text,nat_wt))
 
 #define survey design objects
 #Not sure how to deal with different weights for each section. May need to adopt a questions by question approach, and loop through picking up the appropriate weight variable each time. Or at least section by section.
 #Or leave the data long
 options(survey.lonely.psu="remove")
-surveydesign_nat<-svydesign(ids=~1, weights=~nat_wt, data=responses_wider_nat)
+#surveydesign_nat<-svydesign(ids=~1, weights=~nat_wt, data=responses_wider_nat)
+responses_longer <- responses_longer %>% filter(!is.na(nat_wt)) %>% filter(question == "q13")
+survey_design<-responses_longer %>% 
+  as_survey_design(
+  id = patientid,
+  strata = gp_prac_no, 
+  fpc = eligible_pats,
+  weights = nat_wt)
 
+table(responses_longer$question[is.na(responses_longer$nat_wt)])
+table(responses_longer$response_option[is.na(responses_longer$nat_wt)])
 #define function to calculate CIs using survey package
 get_survey_CIs <- function(x,survey_design_object,report_areas) {
   survey_design_object <- update(survey_design_object, analysis_var=factor(get(x)), grouping_var=factor(get(report_areas)))
@@ -72,13 +82,20 @@ get_survey_CIs <- function(x,survey_design_object,report_areas) {
     select(report_area, question, response_text_analysis, wgt_percent_low,wgt_percent_upp)%>% 
     remove_rownames(.)}
 
+#deff = TRUE only tells it to return the design effect, not whether to use it.
 #define aggregate_responses function
 aggregate_responses <- function(report_areas,weights) {
-  responses_longer %>% 
-    filter(!is.na(response_text_analysis)) %>% 
-    group_by("report_area" = {{report_areas}},question,response_text_analysis) %>%
+  survey_design %>% 
+    #filter(!is.na(response_text_analysis)) %>% 
+    group_by("report_area" = {{report_areas}},question,response_text) %>%
     summarise(n_response = n(),
-              n_wgt_response = sum({{weights}},na.rm = TRUE),.groups = "keep")}
+              survey_prop(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")),
+              n_wgt_response = sum({{weights}},na.rm = TRUE),
+              .groups = "keep")%>% 
+    rename(wgt_percent = coef)}
+
+# nat %>%   group_by(question,response_text) %>%
+#   survey_tally(vartype = c("ci")) 
 
 #run at each level####
 nat_cis <- lapply(questions, function (x) get_survey_CIs(x,surveydesign_nat,"scotland")) %>%  bind_rows() %>% mutate(level = "Scotland")
