@@ -45,8 +45,8 @@ source("00.set_up_file_paths.R")
 
 #Read in document
 
-question_mapping <- read_xlsx(paste0(lookup_path,"ASDHD - Health and Care Experience Survey - 2025 - 2026_v1.xlsx"),
-                              sheet = "HACE 2025-26 wip (new)",na = "", trim_ws = TRUE)
+question_mapping <- read_xlsx(paste0(lookup_path,"HACE_2025_question_mapping.xlsx"),
+                              sheet = "HACE 2025-26",na = "", trim_ws = TRUE)
 
 question_mapping <- question_mapping %>%
   mutate(across(everything(), as.character))%>%
@@ -66,39 +66,32 @@ question_lookup_info <- question_mapping %>%
 # question_lookup_info <- question_lookup_info %>%
 #   mutate(weight = if_else(question == "q41" & weight == "No_Weight","T5_Wt_Final",weight))
 
-table(question_mapping$question[grepl("all that apply",question_mapping$question_text) & nchar(question_mapping$question) == 3],useNA = c("always"))
-
 information_questions_tata <- unique(substr(question_mapping$question,1,3)[question_mapping$`tick all that apply (tata)` == "Y"])
-table(question_mapping$response_code[substring(question_mapping$question,1,3) %in% information_questions_tata])
 
-#check if the same as before
+#check if the same as before, then save
 hist.file <- readRDS(paste0(lookup_path,"question_lookup_info.rds"))
-identical(hist.file,question_lookup_info)
-
+all.equal(hist.file,question_lookup_info)
 saveRDS(question_lookup_info, paste0(lookup_path,"question_lookup_info.rds"))
-
-table(question_mapping$question_type,useNA = c("always"))
 
 question_lookup_pnn <- question_mapping %>%
   filter(question_type == "Percent positive")%>%
   mutate(question_2024 = if_else(`comparability` %in% c("Dashboard","Commentary"),`quest. no. prev year`,""))%>%
-  mutate(response_text = if_else(grepl("positive",processing) == TRUE, "Positive",if_else(grepl("negative",processing) == TRUE,"Negative","Neutral")))%>%
-  select(question,question_text,weight,response_code,response_text,topic,question_2024)
+  mutate(response_text_analysis = if_else(grepl("positive",processing) == TRUE, "Positive",if_else(grepl("negative",processing) == TRUE,"Negative","Neutral")))%>%
+  select(question,question_text,weight,response_code,response_text,response_text_analysis,topic,question_2024)
 
 #check if the same as before, then save
 hist.file <- readRDS(paste0(lookup_path,"question_lookup_pnn.rds"))
-identical(hist.file,question_lookup_pnn)
+all.equal(hist.file,question_lookup_pnn)
 saveRDS(question_lookup_pnn, paste0(lookup_path,"question_lookup_pnn.rds"))
 
-#CH need to check this works and possibly re-write. Needed to analyse all questions together in aggregate results script.
+#Create combined lookup to analyse all questions together in aggregate results script.
 question_lookup <- question_lookup_info %>% 
   filter(question != "q38") %>% 
   bind_rows(question_lookup_pnn) %>% 
-  rename(response_value = pnn) %>%
-  mutate(response_text_analysis = coalesce(response_value,response_text)) # for aggregate_results.R
+  mutate(response_text_analysis = case_when(is.na(response_text_analysis)~response_text,TRUE ~ response_text_analysis)) # for aggregate_results.R
 #check if the same as before
 hist.file <- readRDS(paste0(lookup_path,"question_lookup.rds"))
-identical(hist.file,question_lookup)
+all.equal(hist.file,question_lookup)
 saveRDS(question_lookup, paste0(lookup_path,"question_lookup.rds"))
 
 #create vectors of percent positive / information questions
@@ -108,13 +101,13 @@ questions <- question_mapping$question[(question_mapping$question_type %in% c("P
 
 #check if the same as before
 hist.file <- readRDS(paste0(lookup_path,"questions.rds"))
-identical(hist.file,questions)
+all.equal(hist.file,questions)
 hist.file <- readRDS(paste0(lookup_path,"information_questions.rds"))
-identical(hist.file,information_questions)
+all.equal(hist.file,information_questions)
 hist.file <- readRDS(paste0(lookup_path,"percent_positive_questions.rds"))
-identical(hist.file,percent_positive_questions)
+all.equal(hist.file,percent_positive_questions)
 hist.file <- readRDS(paste0(lookup_path,"information_questions_tata.rds"))
-identical(hist.file,information_questions_tata)
+all.equal(hist.file,information_questions_tata)
 
 saveRDS(questions, paste0(lookup_path,"questions.rds"))
 saveRDS(information_questions, paste0(lookup_path,"information_questions.rds"))

@@ -40,5 +40,5 @@ weight1_sum <- weight1%>%
   
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"weight1.rds"))
-identical(hist.file,weight1)
+all.equal(hist.file,weight1)
 saveRDS(weight1,paste0(weights_path,"weight1.rds"))

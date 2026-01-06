@@ -36,6 +36,9 @@ source("00.functions.R")
 #read in results longer data####
 responses_longer <- readRDS(paste0(analysis_output_path,"responses_longer.rds"))
 
+#read in weights data####
+weights_vars <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
+
 question_lookup_info <- readRDS(paste0(lookup_path_202324,"question_lookup_info.rds")) #read in lookup for info questions
 question_lookup_pnn <- readRDS(paste0(lookup_path_202324,"question_lookup_pnn.rds")) #read in lookup for pnn questions
 question_lookup <- question_lookup_info %>% 
@@ -47,7 +50,6 @@ responses_longer <- responses_longer %>%
   left_join(question_lookup %>% select(question,response_option,response_text),by = c("question","response_option")) 
 
 #hist.file <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
-#Need to keep eligible patients for the calculation of the fpc?
 responses_wider_nat <- responses_longer %>% 
   pivot_wider(id_cols = c(patientid,all_of(report_areas),eligible_pats),names_from = question,values_from = c(response_text,nat_wt))
 
@@ -57,12 +59,17 @@ responses_wider_nat <- responses_longer %>%
 options(survey.lonely.psu="remove")
 #surveydesign_nat<-svydesign(ids=~1, weights=~nat_wt, data=responses_wider_nat)
 responses_longer <- responses_longer %>% filter(!is.na(nat_wt)) %>% filter(question == "q13")
-survey_design<-responses_longer %>% 
+survey_design_l<-responses_longer %>% 
   as_survey_design(
-  id = patientid,
   strata = gp_prac_no, 
   fpc = eligible_pats,
   weights = nat_wt)
+
+survey_design_w<-responses_wider_nat %>% 
+  as_survey_design(
+    strata = gp_prac_no, 
+    fpc = eligible_pats,
+    weights = nat_wt_q13)
 
 table(responses_longer$question[is.na(responses_longer$nat_wt)])
 table(responses_longer$response_option[is.na(responses_longer$nat_wt)])
@@ -82,25 +89,83 @@ get_survey_CIs <- function(x,survey_design_object,report_areas) {
     select(report_area, question, response_text_analysis, wgt_percent_low,wgt_percent_upp)%>% 
     remove_rownames(.)}
 
-#deff = TRUE only tells it to return the design effect, not whether to use it.
 #define aggregate_responses function
-aggregate_responses <- function(report_areas,weights) {
+aggregate_responses <- function(report_areas,survey_design,weights) {
   survey_design %>% 
     #filter(!is.na(response_text_analysis)) %>% 
     group_by("report_area" = {{report_areas}},question,response_text) %>%
     summarise(n_response = n(),
               survey_prop(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")),
+              survey_mean(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")),
               n_wgt_response = sum({{weights}},na.rm = TRUE),
               .groups = "keep")%>% 
     rename(wgt_percent = coef)}
 
+#need to test:
+#1 does shape (longer or wider) affect the result?
+#2 How do the results from srvyr compare to other ways of defining CIs?
+#Compare survey_prop to confint
+#svyciprop is for binary variables only, so this should also be true for survey_prop which is a wrapper. However, does seem to work for categorical vars.
+#https://www.rdocumentation.org/packages/survey/versions/4.4-8/topics/svyciprop - for binary variables only - could turn each variable into multiple indicators
+
+#deff = TRUE only tells it to return the design effect, not whether to use it.
+
+compare <- survey_design_w %>% 
+  group_by(response_text_q13) %>% 
+  summarise(survey_prop(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit"))) %>% 
+  rename(prop_wgt_percent = coef,prop_low = `_low`,prop_upp = `_upp`) %>% 
+  cbind(
+  survey_design_w %>% 
+  group_by(response_text_q13) %>% 
+  summarise(survey_mean(na.rm = TRUE,proportion = FALSE,vartype = c("ci"),level = 0.95,prop_method = c("logit"))) %>% 
+  rename(mean_wgt_percent = coef,mean_low = `_low`,mean_upp = `_upp`) %>% 
+    select(-response_text_q13))  %>% 
+  cbind(
+    as.data.frame(confint(svymean(~response_text_q13, survey_design_w))) %>% 
+      rename(confint_low = `2.5 %`,
+             confint_upp = `97.5 %`) %>% 
+      mutate(response = rownames(.)) %>% 
+      remove_rownames(.)
+)
+  
+  
+#confint(svyby(~survey_design_w$response_text_q13, survey_design_w,svymean, na.rm=TRUE, deff="replace", keep.var=TRUE))
+    
+model <- as.data.frame(confint(svymean(~response_text_q13, survey_design_w))) %>% 
+  rename(wgt_percent_low = `2.5 %`,
+         wgt_percent_upp = `97.5 %`) %>% 
+  mutate(response = rownames(.)) %>% 
+  remove_rownames(.)
+  
+confint(model)
+    
+#survey_mean(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")))
+
 # nat %>%   group_by(question,response_text) %>%
 #   survey_tally(vartype = c("ci")) 
 
+#https://stackoverflow.com/questions/14112508/confidence-intervals-of-svyby-proportion
+
 #run at each level####
-nat_cis <- lapply(questions, function (x) get_survey_CIs(x,surveydesign_nat,"scotland")) %>%  bind_rows() %>% mutate(level = "Scotland")
+#nat_cis <- lapply(questions, function (x) get_survey_CIs(x,surveydesign_nat,"scotland")) %>%  bind_rows() %>% mutate(level = "Scotland")
+
 nat <- aggregate_responses(scotland,nat_wt) 
+nat_sCIs <- get_survey_CIs("response_text_q13",survey_design_w,"scotland")
+
 nat <- nat_cis %>%   left_join(nat,by = c("report_area","question","response_text_analysis"))
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #add on completed forms and sample size####
