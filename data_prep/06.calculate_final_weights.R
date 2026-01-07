@@ -1,5 +1,5 @@
-# Written by Catriona Haddow and Martin Leitch
-# November 2025.
+# *****************************************
+# January 2025 WIP.
 
 # *******************************************************************************************************************************************************************
 # File Name: 06. calculate_final_weights.R.
@@ -7,30 +7,16 @@
 # patient level file with weights at all levels.
 # 
 # Input files:
-#"output/analysis_output/responses_with_categories.rds"
-#"output/weights/[nat,hb,hscp,gpcl,gp,ca,locality,ca_locality]_weights.rds
+# analysis_output_path,"responses_with_categories.rds" #created in 05.calculate_non_response_weight2.R
+# weights_path,[nat,hb,hscp,gpcl,gp,ca,locality,ca_locality]_weights.rds #created in 05.calculate_non_response_weight2.R
 
 # Output files:
-#"output/weights/weights_vars.csv"
-#"output/weights/weights_vars.rds"
-#"output/weights/weights_vars_sg.csv"
-#"output/weights/weights_vars_sg.rds"
+#weights_path,"weights_vars.rds", also .csv
+#weights_path,weights_vars_sg.rds"
 
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
 source("00.functions.R")
-
-#define the weights function
-# add_final_weights <- function(section_no) {
-#   weights <- weights %>% 
-#     filter(section == deparse(substitute(section_no))) #deparse substitute is to use variable as a value
-#   responses <- responses %>%
-#   mutate(in_section = {{section_no}}) %>% #curly brackets to use variable as a variable name
-#     left_join(weights,
-#               by = c("in_section","report_area","age_band","sex")) %>%
-#   mutate(final_weight = if_else({{section_no}} == "Y", gp_wt1*weight,0)) 
-#    return(responses)
-# }
 
 add_final_weights <- function(section_no) {
   varname <- paste0(deparse(substitute(section_no)), "_weight")#deparse substitute is to use variable as a value
@@ -83,7 +69,6 @@ responses <- add_final_weights(s4)
 responses <- add_final_weights(s5) 
 responses <- add_final_weights(s6) 
 
-hist.file <- readRDS(paste0(output_path_202324,"weights/weights_vars.rds"))
 sections <- unique(weights$section)
 for (section in sections) {
   responses <- add_final_weights(section)}#this doesn't work

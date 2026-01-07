@@ -1,20 +1,18 @@
-# Written by Catriona Haddow and Martin Leitch
-# November 2023.
-# Adapted from 2021 code by Catriona Haddow
+# January 2025 WIP.
 #
 # *****************************************
 #Purpose: Reads in base sample file and creates a cut down version without identifiers for use in lookups and to retain.
+#         Creates sample sizes for weighting, and sample sizes (net of pre and first mail out day exclusions) for dashboard outputs
 
 #Inputs:
-#"data/sampling/Master Sample File/2023.12.01_master_HACE_list_post_mailout.parquet" #UPDATE!
-#"data_Validated results.rds"
+# sample_path,"Master Sample File/2025.12.10_master_HACE_list_post_mailout.parquet" #where is this created?
+# data_path,"results/data_Validated_results.rds")) #created in script 01.validation
 
 #Outputs:
-# "lookups/patientID_info.rds"
-# "output/sampling/sample_for_SG.rds"
-# "output/sampling/sample_for_SG.csv"
-# "output/weights/sample_size_by_gp.rds"
-# "output/weights/sample_size_by_gp.csv"
+# lookup_path,"patientID_info.rds"
+# output_path,"sampling/sample_for_SG.rds" # ?also as csv?
+# weights_path,"sample_size_by_gp.rds"# ?also as csv?
+# analysis_output_path,"sample_size_net_of_pse.rds"
         
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
@@ -27,6 +25,8 @@ source("00.functions.R")
  #   collect()
 #psid removed:  what was this? is it useful? 
 #ls(sample_get_var_names)
+
+#Step 1. Create patientID_info - a cut-down version of the sample file####
 sample <- read_parquet(paste0(sample_path,"Master Sample File/2025.12.10_master_HACE_list_post_mailout.parquet"),   
                    col_select = c("patientid","sex","age","gp_prac_no","hb2019","hb2019name","hscp2019","hscp2019name","ca2019","ca2019name",
                                   "simd2020v2_sc_quintile","simd2020v2_sc_decile","ur6_2022","ur6_2022_name","ur8_2022","ur8_2022_name",
@@ -57,7 +57,6 @@ sample <- sample %>%
 table(sample$flagnew,useNA = c("always")) #check matches
 rm(validated_results)
 
-#removed line:  rename(qh_psid = psid) %>% #PSID to QH_PSID - to enable matching in script 6 Calculate_non-response_weight2.R
 sample <- sample %>% 
   relocate(c(patientid_sg,responsecode), .before = sex) %>%  #relocate patientid qh_psid patientid_sg and response.code(flag)
   relocate(c(patientid,qh_psid), .before = sex) %>% #tidy file
@@ -83,7 +82,7 @@ saveRDS(sample_for_SG,paste0(output_path,"sampling/sample_for_SG.rds"))
 
 table(sample$reason,sample$iqvia_exclude) # CH - to output?
 
-#calculate sample size by practice
+#Step 2. Calculate sample size by practice####
 sample_size_by_gp <- sample %>%
   group_by(gp_prac_no) %>%
   summarise(sample_pop = n())
@@ -92,6 +91,40 @@ sample_size_by_gp <- sample %>%
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"sample_size_by_gp.rds"))
 all.equal(hist.file,sample_size_by_gp)
-
 saveRDS(sample_size_by_gp,paste0(weights_path,"sample_size_by_gp.rds"))
 #write_excel_csv(sample_size_by_gp,paste0(weights_path,"sample_size_by_gp.csv")) #CH why write excel_csv? delete this?
+
+#Step 3. Create sample sizes (net of pre and first mail out day exclusions) for dashboard.####
+
+pre_survey_exclusions <- sample %>% 
+  filter(pre_survey_exclusion == 1) %>% #only include those who were excluded
+  group_by(gp_prac_no) %>% 
+  summarise(pre_survey_exclusions = n())
+
+#read in Practice lookup to get information at all reporting levels
+practice_lookup <- readRDS(paste0(lookup_path,"practice_lookup.rds"))
+
+sample_size_net_of_pse  <- sample_size_by_gp %>% 
+  left_join(practice_lookup,by = c("gp_prac_no")) %>% 
+  mutate(scotland = "Scotland") %>% #add new variable for reporting at national level
+  left_join(pre_survey_exclusions,by = c("gp_prac_no")) %>% 
+  mutate(pre_survey_exclusions = replace_na(pre_survey_exclusions,0)) %>% 
+  mutate(net_sample_pop = sample_pop - pre_survey_exclusions) #calculate the sample population, net of pre survey exclusions
+
+sample_size_list <- lapply(report_areas, function(x) {
+  x <- sample_size_net_of_pse %>% group_by_at(x) %>% summarise(net_sample_pop = sum(net_sample_pop))})
+
+sample_size_list <- lapply(seq_along(sample_size_list), function(x) {   #rename all columns for later binding
+  sample_size_list[[x]][3] <- names(sample_size_list[[x]])[1]
+  names(sample_size_list[[x]])[1] <- "report_area"
+  names(sample_size_list[[x]])[3] <- "level"
+  sample_size_list[[x]]
+})
+
+sample_size <- bind_rows(sample_size_list)%>% 
+  mutate(level = str_replace_all(level, setNames(report_areas_output, report_areas)))
+
+#check if the same as before
+hist.file <- readRDS(paste0(analysis_output_path,"sample_size_net_of_pse.rds"))
+identical(hist.file,sample_size_list)
+saveRDS(sample_size, paste0(analysis_output_path,"sample_size_net_of_pse.rds"))

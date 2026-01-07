@@ -1,16 +1,13 @@
-# Written by Catriona Haddow and Martin Leitch
-# November 2023.
-# Adapted from 2021 code by Catriona Haddow
-# 
 # *****************************************
+# January 2025 WIP.
 #Purpose: Create weight1 - probability of non-selection
 
 #Inputs:
-#eligible_pats_by_gp.rds"
-#sample_size_by_gp.rds"
+#weights_path,eligible_pats_by_gp.rds" #created in 03.create_reference_files_from_eligible_pop
+#weights_path,sample_size_by_gp.rds" #created in 02.create_patient_info_files_from_sample_pop
 
 #Outputs:
-#"output/weights/weight1.rds"
+#weights_path,weight1.rds"
 
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
