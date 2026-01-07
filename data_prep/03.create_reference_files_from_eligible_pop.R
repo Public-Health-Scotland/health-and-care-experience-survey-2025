@@ -4,12 +4,12 @@
 # *****************************************
 
 #TO DO: #CH note - should be possible to run all of these as a function with lapply
-#Inputs: #UPDATE!
+#Inputs:
 #"data/sampling/CHI_Extract_Flagged_Eligible_Patients.parquet",
 #"data/sampling/excluded_practices_pre_sample",
 #"lookups/Final_Practice_lookup.rds" 
 
-#Outputs: #UPDATE!
+#Outputs:
 #"output/weights/eligible_pats_by_gp.rds"
 #"output/weights/gpprac_age_sex_population.rds" 
 #"output/weights/gpcl_age_sex_population.rds"
@@ -23,12 +23,6 @@
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
 source("00.functions.R")
-
-# eligible_get_var_names <- read_parquet(paste0(sample_path,"CHI_Extract_Flagged_Eligible_Patients.parquet"), as_data_frame = FALSE) %>%
-#    slice_head(n = 1) %>% 
-#    compute()
-# 
-# ls(eligible_get_var_names)
 
 eligible <- read_parquet(paste0(sample_path,"CHI_Extract_Flagged_Eligible_Patients.parquet"),
                      col_select = c("upi_number","gp_prac_no","sex","age","age_eligible","non_scottish","loc_hscp_locality","loc_hscp2019name","loc_ca2019name"))
@@ -45,41 +39,23 @@ eligible <- eligible %>%
 table(eligible$patient_ca_locality)
 table(is.na(eligible$loc_hscp2019name),eligible$non_scottish)  #there are scottish addresses with no locality
 
-#Select 17 and over only. 
-table(eligible$age_eligible) #need to output this?
+#Describe exclusions:
+exclusions <- eligible %>% #output this file?
+  group_by() %>%
+  summarise(total = n(),
+            age_exclusions = sum(age_eligible == 0),
+            non_scottish_exclusions = sum(non_scottish ==1))
 
-eligible <- eligible %>%  filter(age_eligible== 1)
+eligible <- eligible %>%  
+  filter(age_eligible == 1) %>% #Select 17 and over only. 
+  filter(non_scottish == 0)  #Exclude Patients with Non Scottish Address. 
 
-#Exclude Patients with Non Scottish Address. 
-table(eligible$non_scottish,useNA = c("always")) #need to output this?
-
-eligible <- eligible %>% filter(non_scottish == 0)
-
-#read in the list of excluded practices
+#GP practice check
 excluded_practices <- read_xlsx(paste0(data_path,"sampling/excluded_practices.xlsx"))
-excluded_practices <- excluded_practices %>%
-  select(gp_prac_no) %>%
-  mutate(excluded = 1)
 
-#look at excluded practices
-eligible <- eligible %>% 
-  left_join(excluded_practices,by = c("gp_prac_no"))
-
-#which practices have been excluded
-table(eligible$gp_prac_no[eligible$excluded == 1]) #need to output this?
-table(eligible$excluded,useNA = c("always"))
-
-#drop excluded practices
-eligible <- eligible %>% filter(is.na(excluded))
-
-#Check of number of "eligible" practices
-length(unique(eligible$gp_prac_no))
-
-eligible$excluded <- NULL #drop unnecessary variables
-
-#filter missing gp_prac_no
-sum(eligible$gp_prac_no == "") # 0 
-eligible <- eligible %>% filter(gp_prac_no != "")
+length(eligible$gp_prac_no[eligible$gp_prac_no %in% excluded_practices$gp_prac_no])#check that we have excluded all excluded practices
+sum(eligible$gp_prac_no == "") #check that there are no missing GP practice numbers 
+length(unique(eligible$gp_prac_no))#Check of number of "eligible" practices
 
 #Create eligible patients per GP file for use in Create_weight1.R
 eligible_pats_by_gp <- eligible %>%
@@ -88,10 +64,9 @@ eligible_pats_by_gp <- eligible %>%
 
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"eligible_pats_by_gp.rds"))
-identical(hist.file,eligible_pats_by_gp)
+all.equal(hist.file,eligible_pats_by_gp)
 
-#save this to directory.
-saveRDS(eligible_pats_by_gp,paste0(weights_path,"eligible_pats_by_gp.rds"))
+saveRDS(eligible_pats_by_gp,paste0(weights_path,"eligible_pats_by_gp.rds"))#save this to directory.
 
 eligible <- eligible %>%
   mutate(age_band_2 = two_age_bands(age), #Add age groups
@@ -99,9 +74,10 @@ eligible <- eligible %>%
        age_band_6 = six_age_bands(age))
 
 #match on GP Practice information
-practice_info <- readRDS(paste0(lookups_path,"Final_Practice_lookup.rds"))
+#practice_info <- readRDS(paste0(lookup_path,"Final_Practice_lookup.rds"))
+practice_lookup <- readRDS(paste0(lookup_path,"practice_lookup.rds"))
 eligible <- eligible %>%
-  left_join(practice_info,by = c("gp_prac_no"))
+  left_join(practice_lookup,by = c("gp_prac_no"))
 
 #2 age groups
 gpprac_age_sex_population_2 <- eligible %>%
@@ -109,7 +85,7 @@ gpprac_age_sex_population_2 <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"gpprac_age_sex_population_2.rds"))
-identical(hist.file,gpprac_age_sex_population_2)
+all.equal(hist.file,gpprac_age_sex_population_2)
 saveRDS(gpprac_age_sex_population_2,paste0(weights_path,"gpprac_age_sex_population_2.rds"))
 
 gpcl_age_sex_population <- eligible %>%
@@ -117,7 +93,7 @@ gpcl_age_sex_population <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS("output/weights/gpcl_age_sex_population.rds")
-identical(hist.file,gpcl_age_sex_population)
+all.equal(hist.file,gpcl_age_sex_population)
 saveRDS(gpcl_age_sex_population,paste0(weights_path,"gpcl_age_sex_population.rds"))
 
 locality_age_sex_population <- eligible %>%
@@ -125,7 +101,7 @@ locality_age_sex_population <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"locality_age_sex_population.rds"))
-identical(hist.file,locality_age_sex_population)
+all.equal(hist.file,locality_age_sex_population)
 saveRDS(locality_age_sex_population,paste0(weights_path,"locality_age_sex_population.rds"))
 
 ca_locality_age_sex_population <- eligible %>%
@@ -133,7 +109,7 @@ ca_locality_age_sex_population <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"ca_locality_age_sex_population.rds"))
-identical(hist.file,ca_locality_age_sex_population)
+all.equal(hist.file,ca_locality_age_sex_population)
 saveRDS(ca_locality_age_sex_population,paste0(weights_path,"ca_locality_age_sex_population.rds"))
        
 #3 age groups
@@ -143,7 +119,7 @@ hscp_age_sex_population <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"hscp_age_sex_population.rds"))
-identical(hist.file,hscp_age_sex_population)
+all.equal(hist.file,hscp_age_sex_population)
 saveRDS(hscp_age_sex_population,paste0(weights_path,"hscp_age_sex_population.rds"))
 
 hb_age_sex_population <- eligible %>%
@@ -151,7 +127,7 @@ hb_age_sex_population <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"hb_age_sex_population.rds"))
-identical(hist.file,hb_age_sex_population)
+all.equal(hist.file,hb_age_sex_population)
 saveRDS(hb_age_sex_population,paste0(weights_path,"hb_age_sex_population.rds"))
 
 ca_age_sex_population <- eligible %>%
@@ -159,7 +135,7 @@ ca_age_sex_population <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"ca_age_sex_population.rds"))
-identical(hist.file,ca_age_sex_population)
+all.equal(hist.file,ca_age_sex_population)
 saveRDS(ca_age_sex_population,paste0(weights_path,"ca_age_sex_population.rds"))
 
 #6 age groups
@@ -168,7 +144,7 @@ scot_age_sex_population <- eligible %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"scot_age_sex_population.rds"))
-identical(hist.file,scot_age_sex_population)
+all.equal(hist.file,scot_age_sex_population)
 saveRDS(scot_age_sex_population,paste0(weights_path,"scot_age_sex_population.rds"))
 
 

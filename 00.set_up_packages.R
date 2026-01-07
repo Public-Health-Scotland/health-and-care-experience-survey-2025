@@ -6,4 +6,5 @@ library(srvyr) #version 1.2.7
 library(survey) #version 1.2.7
 library(janitor) #version 2.2.0
 library(data.table) #for set.names
+library(arrow) #for parquet
 
