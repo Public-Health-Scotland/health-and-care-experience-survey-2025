@@ -1,6 +1,4 @@
-# Written by Martin Leitch
-# February 2024.
-# Adapted from 2021 code by Martin Leitch
+# WIP: November 2025
 
 #Technical report output.
 #Purpose: Create output for the HACE Technical Output.
@@ -13,10 +11,11 @@
 #lookup_path,"patientID_info.rds" created in 02.create_patient_info_files_from_sample_pop.R
 #lookup_path,"practice_lookup.rds" #created in '...\202526\syntax\sampling\create_final_practice_lookup.R'.
 #data_path, results/data_Validated_results.rds #created in 01.validation.R
+#sample_path,"Master Sample File/2025.12.10_master_HACE_list_post_mailout.parquet" # add where this created? sampling
 
 #Outputs:
-#/conf/bss/pat-exp-surveys/health-and-care/202324/output/technical_report/technical_report_populated_tables.xlsx
-##/conf/bss/pat-exp-surveys/health-and-care/202324/output/technical_report/sample_removals_note.xlsx
+#output_path,"/technical_report/technical_report_populated_tables_",today(),".xlsx"
+#output_path,"technical_report/sample_removals_note_",today(),".xlsx"
 
 #Process:
 #Obtain tidied up results file data_Validated results.rds
@@ -238,11 +237,7 @@ saveWorkbook(template,paste0(output_path,"/technical_report/technical_report_pop
 #Total Deaths Day 2 (Rest of Initial Mail Out)
 #Total No of Removals Sent to QH (after Day 2)
 
-#Inputs: "data/sampling/Master Sample File/2023.12.01_master_HACE_list_post_mailout.parquet"
-#Output Template: "output/technical_report/removals_template.xlsx"
-#Outputs:"output/technical_report/sample_removals_note.xlsx"
-
-sample <- read_parquet(paste0(sample_path,"Master Sample File/2025.12.10_master_HACE_list_post_mailout.parquet"), #note this is the same file as 'sample' earlier
+sample <- read_parquet(paste0(sample_path,"Master Sample File/2025.12.10_master_HACE_list_post_mailout.parquet"), 
                         col_select = c("IQVIA_flagdate","nhscr_date","NHSCR_reason","chili_date","chili_reason",
                                        "IQVIA_exclude","pre_survey_exclusion","reason","primary_exclusion_source"))
 sample <- sample %>% 

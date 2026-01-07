@@ -1,23 +1,21 @@
+# *****************************************
+# January 2025 WIP.
 # Name of file: 01.create_responses_longer.R
-# 
-# Original author(s): Catriona Haddow 
-#   
-# Written/run on: Posit Workbench - RStudio R 4.1.2
-# 
-# Description of content:  Read in responses, restructure to be longer, add weights
+# Description of content:  Read in responses, restructure to be longer, add weights.
+# Also counts responses for use in dashboard
 # 
 # Approximate run time: 2 min
 # 
 # Approximate memory usage: 7 GiB
 
 #Inputs:
-#analysis_output_path,"responses_with_categories.rds"
-#weights_path,"weights_vars.rds"
-#lookup_path,"question_lookup.rds"
+#analysis_output_path,"responses_with_categories.rds" #created in 05.calculate_non_response_weight2.R
+#weights_path,"weights_vars.rds" #created in 06.calculate_final_weights.R
+#lookup_path,"question_lookup.rds" #created in script 00.create_question_lookup
 
 #Outputs:
-#"output/analysis_output/responses_longer.rds"
-#"output/temp/forms_completed_list.rds"
+#analysis_output_path,"responses_longer.rds"
+#analysis_output_path,forms_completed_list.rds"
 
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
@@ -28,7 +26,7 @@ responses <- readRDS(paste0(analysis_output_path,"responses_with_categories.rds"
 responses <- responses %>% mutate(scotland = "Scotland") #add new variable for reporting at national level
 
 #read in weights data####
-weights_vars <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
+weights_vars <- readRDS(paste0(weights_path,"weights_vars.rds"))
 
 #joining by all id variables prevents duplication - that is, creation of patientid_sg.x for example
 responses <- responses %>% 
@@ -36,15 +34,15 @@ responses <- responses %>%
 
 #pivot longer####
 responses_longer <- responses %>%
-  pivot_longer(all_of(questions),names_to = "question", values_to = "response_option")%>%
-  select("patientid",all_of(report_areas),ends_with('_wt'),question,response_option,eligible_pats) %>% 
-  mutate(response_option = as.character(response_option))
+  pivot_longer(all_of(questions),names_to = "question", values_to = "response_code")%>%
+  select("patientid",all_of(report_areas),ends_with('_wt'),question,response_code,eligible_pats) %>% 
+  mutate(response_code = as.character(response_code))
 
 #read in lookup to get weight category
-question_lookup <- readRDS(paste0(lookup_path_202324,"question_lookup.rds"))
+question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds"))
 
 responses_longer <- responses_longer %>% 
-  left_join(select(question_lookup,question,response_option,weight),by = c("question","response_option"))
+  left_join(select(question_lookup,question,response_code,weight),by = c("question","response_code"))
 
 #select weight for each question####
 responses_longer <- responses_longer%>%
@@ -85,15 +83,16 @@ responses_longer <- responses_longer%>%
                              weight == "No_Weight" ~ 1))
 
 responses_longer <- responses_longer %>% 
-  select("patientid",all_of(report_areas),all_of(report_area_wt),question,response_option,eligible_pats)
+  select("patientid",all_of(report_areas),all_of(report_area_wt),question,response_code,eligible_pats)
 
 #check if the same as before, then save new file
-hist.file <- readRDS(paste0(analysis_output_path_202324,"responses_longer.rds"))
+hist.file <- readRDS(paste0(analysis_output_path,"responses_longer.rds"))
 all.equal(hist.file,responses_longer)
 saveRDS(responses_longer, paste0(analysis_output_path,"responses_longer.rds"))
 
-check_options <- responses_longer %>% 
-  tabyl(question, response_option) #ch - worth saving this out?
+responses_counts <- responses_longer %>% 
+  tabyl(question, response_code) 
+write.table(responses_counts,paste0(analysis_output_path,"responses_counts.csv"),quote = TRUE, sep = ",", na = "NA", dec = ".", row.names = FALSE)
 
 #calculate response rate = completed form count / sample size ####
 forms_completed_list <- lapply(report_areas, function(x) {
@@ -106,13 +105,12 @@ forms_completed_list <- lapply(seq_along(report_areas), function(x) {
   forms_completed_list[[x]]
 })
 
-forms_completed_list <- bind_rows(forms_completed_list)
-forms_completed_list$level <- str_replace_all(forms_completed_list$level, setNames(report_areas_output, report_areas))
+forms_completed_list <- bind_rows(forms_completed_list) %>% 
+  mutate(level = str_replace_all(level, setNames(report_areas_output, report_areas)))
 
 #check if the same as before, then save new file
 hist.file <- readRDS(paste0(analysis_output_path,"forms_completed_list.rds"))
-identical(hist.file,forms_completed_list)
-file.remove(paste0(analysis_output_path,"forms_completed_list.rds"))
+all.equal(hist.file,forms_completed_list)
 saveRDS(forms_completed_list, paste0(analysis_output_path,"forms_completed_list.rds"))
 
 

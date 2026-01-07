@@ -13,9 +13,14 @@ crosstabs_f <- function(x,comp_var) {  # function to produce list of crosstabs
   tabyl(contractor_data, !!sym(comp_var), !!sym(x)) %>%  adorn_totals(where = c("row", "col")) %>% adorn_title("combined")
 }
 
-rowAny <- function(x) {rowSums(x,na.rm = TRUE) > 0} #checks whether any of list of variables is not NA or 0
-rowAll <- function(x) {rowSums(x,na.rm = TRUE) == 0} #checks whether all of list of variables are NA or 0
+#rowAny <- function(x) {rowSums(x,na.rm = TRUE) > 0} #checks whether any of list of numeric variables is not NA or 0
+#rowAll <- function(x) {rowSums(x,na.rm = TRUE) == 0} #checks whether all of list of numeric variables are NA or 0
 subset_qs <- function(x,y) {questions[between(as.numeric(str_extract(questions,"\\d+")),x,y)]} #function to subset questions from questions vector
+
+#These can only be used within dplyr mutate
+any_empty_f <- function(x) {if_any(.cols = all_of(x),.fns = ~ is.na(.))} #checks whether any of list of variables is NA. 
+all_empty_f <- function(x) {if_all(.cols = all_of(x),.fns = ~ is.na(.))} #checks whether all of list of variables is NA
+any_not_empty_f = function(x) {if_any(.cols = all_of(x),.fns = ~ !is.na(.))} #checks whether any of list of variables is not NA
 
 #age groups
 

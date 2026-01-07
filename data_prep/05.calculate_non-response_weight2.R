@@ -1,7 +1,6 @@
-# Written by Catriona Haddow and Martin Leitch
-# November 2025.
-
 # *****************************************
+# January 2025 WIP.
+
 #Purpose: Creates responses_with_categories file with age bands and sections. Calculates non-response weights (weight 2)
 
 #TO DO:
@@ -9,16 +8,16 @@
 #We now have in section categories Y, N, and NA - what impact does this have? this does have an impact - have reverted to Y and N only
 
 #Inputs: 
-#data/Results/data_Validated results.rds
-#lookups/patientID_info.rds
-#lookups/practice_lookup.sav
-#output/weights/weight1.rds
-#output/weights/[scot,hb,hscp,gpcl,gpprac,ca,locality,ca_locality]_age_sex_population.rds"
-#lookups/pcis_rates_[2,3,6]_agebands.rds
+#data/Results/data_Validated results.rds #created in 01.validation.R
+#lookup_path,"patientID_info.rds" #created in 02.create_patient_info_files_from_sample_pop.R
+#lookup_path,"practice_lookup.rds" #created in '...\202526\syntax\sampling\create_final_practice_lookup.R'.
+#weights_path,weight1.rds" #created in 04.create_weight1
+#weights_path,[scot,hb,hscp,gpcl,gpprac,ca,locality,ca_locality]_age_sex_population.rds" #created in 03.create_reference_files_from_eligible_pop
+#lookup_path,pcis_rates_[2,3,6]_agebands.rds #created in 00.reformat_PCIS_rates
 
 #Outputs: 
-#"output/analysis_output/responses_with_categories.rds"
-#"output/weights/[nat,hb,hscp,gpcl,gp,ca,locality,ca_locality]_weights.rds
+#analysis_output_path,"responses_with_categories.rds"
+#weights_path,[nat,hb,hscp,gpcl,gp,ca,locality,ca_locality]_weights.rds
 
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
@@ -44,22 +43,22 @@ validated_results <- validated_results %>%
          age_band_3 = three_age_bands(age),
          age_band_6 = six_age_bands(age))
 
-#Add markers to indicate which respondents are in each weighting population
+#Add markers to indicate which respondents are in each weighting population####
 
-#s1  - GP users  (weight for questions 2-17b)####
-#s2  - OOH users  (weight for Questions 20a to 25)####
-#s3  - Social care users (weight for Questions 28a-31)####
-#s4  - Carers (weight for Questions 34a to 37e)####
-#s5  - Whole population (weight for Questions 1,19,27a,27b,27c,27d,27e,27f,27g,27h,33,38)####
-#s6  - Those in need of social care (weight for new Questions 32a,32b,32c,32d,32e,32f,32g,32h,32i)####
+#s1  - GP users  (weight for questions 2-17b)
+#s2  - OOH users  (weight for Questions 20a to 25)
+#s3  - Social care users (weight for Questions 28a-31)
+#s4  - Carers (weight for Questions 34a to 37e)
+#s5  - Whole population (weight for Questions 1,19,27a,27b,27c,27d,27e,27f,27g,27h,33,38)
+#s6  - Those in need of social care (weight for Questions 32a,32b,32c,32d,32e,32f,32g,32h,32i)
 
 validated_results <- validated_results %>%
-  mutate('s1' = case_when(q01 == 1 ~ "Y", TRUE ~ "N"),
-         's2' = case_when(q19 == 1 ~ "Y", TRUE ~ "N"),
-         's3' = case_when(q27a ==1|q27b ==1|q27c==1|q27d==1|q27e==1|q27f==1 ~ "Y",TRUE ~ "N"),
-         's4' = case_when(q33 %in% c(1,2,3,4,5) ~ "Y", TRUE ~ "N"),
+  mutate('s1' = case_when(q01 == "1" ~ "Y", TRUE ~ "N"),
+         's2' = case_when(q19 == "1" ~ "Y", TRUE ~ "N"),
+         's3' = case_when(q27a =="1"|q27b =="1"|q27c=="1"|q27d=="1"|q27e=="1"|q27f=="1" ~ "Y",TRUE ~ "N"),
+         's4' = case_when(q33 %in% c("1","2","3","4","5") ~ "Y", TRUE ~ "N"),
          's5' = "Y",
-         's6' = case_when(q27a ==1|q27b ==1|q27c==1|q27d==1|q27e==1|q27f==1|q27g==1 ~ "Y",TRUE ~ "N"))
+         's6' = case_when(q27a =="1"|q27b =="1"|q27c=="1"|q27d=="1"|q27e=="1"|q27f=="1"|q27g=="1" ~ "Y",TRUE ~ "N"))
 
 #Read in weight 1 and match on. This is used to estimate the population accounted for by the respondents
 weight1 <- readRDS(paste0(weights_path,"weight1.rds"))
@@ -146,7 +145,6 @@ names(nat_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"nat_weights.rds"))
 all.equal(hist.file,nat_weights)
 saveRDS(nat_weights,paste0(weights_path,"nat_weights.rds"))
-
 
 #NHS Board weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'

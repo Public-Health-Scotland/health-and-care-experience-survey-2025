@@ -1,24 +1,16 @@
-# Written by Catriona Haddow and Martin Leitch
-# November 2025.
+# WIP: November 2025
 # 
 # *****************************************
 
 #TO DO: #CH note - should be possible to run all of these as a function with lapply
 #Inputs:
-#"data/sampling/CHI_Extract_Flagged_Eligible_Patients.parquet",
-#"data/sampling/excluded_practices_pre_sample",
-#"lookups/Final_Practice_lookup.rds" 
+#"data/sampling/CHI_Extract_Flagged_Eligible_Patients.parquet", # add where this created? sampling
+# data_path,"sampling/excluded_practices.xlsx",# add where this created? sampling
+#lookup_path,"practice_lookup.rds"  #created in '...\202526\syntax\sampling\create_final_practice_lookup.R'.
 
 #Outputs:
-#"output/weights/eligible_pats_by_gp.rds"
-#"output/weights/gpprac_age_sex_population.rds" 
-#"output/weights/gpcl_age_sex_population.rds"
-#"output/weights/locality_age_sex_population.rds"
-#"output/weights/hscp_age_sex_population.rds"
-#"output/weights/hb_age_sex_population.rds"
-#"output/weights/ca_age_sex_population.rds"
-#"output/weights/scot_age_sex_population.rds"
-#"output/weights/ca_locality_age_sex_population.rds"
+# weights_path,"eligible_pats_by_gp.rds"
+# weights_path,[scot,gpprac,gpcl,locality,hscp,hb,ca,ca_locality]_age_sex_population.rds" 
 
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
@@ -66,7 +58,7 @@ eligible_pats_by_gp <- eligible %>%
 hist.file <- readRDS(paste0(weights_path,"eligible_pats_by_gp.rds"))
 all.equal(hist.file,eligible_pats_by_gp)
 
-saveRDS(eligible_pats_by_gp,paste0(weights_path,"eligible_pats_by_gp.rds"))#save this to directory.
+saveRDS(eligible_pats_by_gp,paste0(weights_path,"eligible_pats_by_gp.rds"))
 
 eligible <- eligible %>%
   mutate(age_band_2 = two_age_bands(age), #Add age groups
@@ -74,7 +66,6 @@ eligible <- eligible %>%
        age_band_6 = six_age_bands(age))
 
 #match on GP Practice information
-#practice_info <- readRDS(paste0(lookup_path,"Final_Practice_lookup.rds"))
 practice_lookup <- readRDS(paste0(lookup_path,"practice_lookup.rds"))
 eligible <- eligible %>%
   left_join(practice_lookup,by = c("gp_prac_no"))

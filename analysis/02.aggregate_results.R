@@ -17,9 +17,9 @@
 #"lookups/information_questions_tata.rds" - created in script 00.create_question_lookup
 #"output/analysis_output/responses_longer.rds" - created in script 01.create_responses_longer
 #"lookups/question_lookup_info.rds"- created in script 00.create_question_lookup
-#"lookups/Final_Practice_lookup.rds"  - created as part of preparation work
-#"output/temp/output/temp/sample_size_list_net_of_deaths.rds" - ???
-#"output/temp/forms_completed_list.rds"
+# lookup_path,"practice_lookup.rds"  #created in '...\202526\syntax\sampling\create_final_practice_lookup.R'.
+#"analysis_output_path,"sample_size_net_of_pse.rds" - script 02.create_patient_info_files_from_sample
+#"output/temp/forms_completed_list.rds" - created in script 01.create_responses_longer
 #"historical_data_path,"info_questions_sg.rds"
 
 #Outputs: 
@@ -37,21 +37,22 @@ source("00.functions.R")
 responses_longer <- readRDS(paste0(analysis_output_path,"responses_longer.rds"))
 
 #read in weights data####
-weights_vars <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
-
-question_lookup_info <- readRDS(paste0(lookup_path_202324,"question_lookup_info.rds")) #read in lookup for info questions
-question_lookup_pnn <- readRDS(paste0(lookup_path_202324,"question_lookup_pnn.rds")) #read in lookup for pnn questions
-question_lookup <- question_lookup_info %>% 
-  filter(question != "q38") %>%  #this means this will be dealt with as a PNN only. Not sure how to do both
-  bind_rows(question_lookup_pnn)
+weights_vars <- readRDS(paste0(weights_path,"weights_vars.rds"))
+question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds"))#q38 dealt with as a PNN only - does this need action?
+# question_lookup_info <- readRDS(paste0(lookup_path,"question_lookup_info.rds")) #read in lookup for info questions
+# question_lookup_pnn <- readRDS(paste0(lookup_path,"question_lookup_pnn.rds")) #read in lookup for pnn questions
+# 
+# question_lookup <- question_lookup_info %>% 
+#   filter(question != "q38") %>%  . Not sure how to do both
+#   bind_rows(question_lookup_pnn)
 
 #match question lookup onto responses longer to add on response_text_analysis only. Deal with NA
 responses_longer <- responses_longer %>% 
-  left_join(question_lookup %>% select(question,response_option,response_text),by = c("question","response_option")) 
+  left_join(question_lookup %>% select(question,response_code,response_text_analysis),by = c("question","response_code")) 
 
 #hist.file <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
 responses_wider_nat <- responses_longer %>% 
-  pivot_wider(id_cols = c(patientid,all_of(report_areas),eligible_pats),names_from = question,values_from = c(response_text,nat_wt))
+  pivot_wider(id_cols = c(patientid,all_of(report_areas),eligible_pats),names_from = question,values_from = c(response_text_analysis,nat_wt))
 
 #define survey design objects
 #Not sure how to deal with different weights for each section. May need to adopt a questions by question approach, and loop through picking up the appropriate weight variable each time. Or at least section by section.
@@ -159,19 +160,10 @@ nat <- nat_cis %>%   left_join(nat,by = c("report_area","question","response_tex
 
 
 
-
-
-
-
-
-
-
-
-
 #add on completed forms and sample size####
-#read in sample size, list completed, 
-sample_size_list <- readRDS(paste0(output_path,"sampling/sample_size_list_net_of_deaths.rds"))
-forms_completed_list <- readRDS(paste0(analysis_output_path,"forms_completed_list.rds"))
+#read in sample size, forms completed, 
+sample_size <- readRDS(paste0(analysis_output_path,"sample_size_net_of_pse.rds"))
+forms_completed <- readRDS(paste0(analysis_output_path,"forms_completed_list.rds"))
 
 info_output <- info_output %>% 
   left_join(forms_completed_list, by = c("level","report_area")) %>% 
