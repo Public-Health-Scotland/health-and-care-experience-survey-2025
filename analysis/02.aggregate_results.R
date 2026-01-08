@@ -1,10 +1,6 @@
-# Name of file: 02.analyse_information_questions.R
+# Name of file: 02.aggregate_results.R
 # 
-# Original author(s): Catriona Haddow
-#   
-# Written/run on: Posit Workbench - RStudio R 4.1.2
-# 
-# Description of content:  Analyse information questions. Read in responses, response rates and output analyses at all levels of reporting.
+# Description of content:  Read in responses, response rates and output analyses at all levels of reporting.
 # 
 # Approximate run time: 3 min
 # 
@@ -36,45 +32,87 @@ source("00.functions.R")
 #read in results longer data####
 responses_longer <- readRDS(paste0(analysis_output_path,"responses_longer.rds"))
 
-#read in weights data####
-weights_vars <- readRDS(paste0(weights_path,"weights_vars.rds"))
-question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds"))#q38 dealt with as a PNN only - does this need action?
-# question_lookup_info <- readRDS(paste0(lookup_path,"question_lookup_info.rds")) #read in lookup for info questions
-# question_lookup_pnn <- readRDS(paste0(lookup_path,"question_lookup_pnn.rds")) #read in lookup for pnn questions
-# 
-# question_lookup <- question_lookup_info %>% 
-#   filter(question != "q38") %>%  . Not sure how to do both
-#   bind_rows(question_lookup_pnn)
+question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds")) 
+question_lookup_short <- question_lookup %>% distinct(question,response_text_analysis)#read in lookup for info questions
 
-#match question lookup onto responses longer to add on response_text_analysis only. Deal with NA
-responses_longer <- responses_longer %>% 
-  left_join(question_lookup %>% select(question,response_code,response_text_analysis),by = c("question","response_code")) 
+# survey_design_l<-responses_longer %>% 
+#     as_survey_design(
+#     strata = gp_prac_no, 
+#     fpc = eligible_pats,
+#     weights = nat_wt)
 
-#hist.file <- readRDS(paste0(weights_path_202324,"weights_vars.rds"))
-responses_wider_nat <- responses_longer %>% 
-  pivot_wider(id_cols = c(patientid,all_of(report_areas),eligible_pats),names_from = question,values_from = c(response_text_analysis,nat_wt))
+aggregate_f <- function(report_areas,wt) {
+     responses_longer <- responses_longer %>%
+        group_by("report_area" = {{report_areas}},question,response_text_analysis)%>%
+        summarise(n_response = sum(!is.na(response_code)),
+                  n_wgt_response = sum({{wt}}),.groups = "keep")}
 
-#define survey design objects
-#Not sure how to deal with different weights for each section. May need to adopt a questions by question approach, and loop through picking up the appropriate weight variable each time. Or at least section by section.
-#Or leave the data long
-options(survey.lonely.psu="remove")
-#surveydesign_nat<-svydesign(ids=~1, weights=~nat_wt, data=responses_wider_nat)
-responses_longer <- responses_longer %>% filter(!is.na(nat_wt)) %>% filter(question == "q13")
-survey_design_l<-responses_longer %>% 
-  as_survey_design(
-  strata = gp_prac_no, 
-  fpc = eligible_pats,
-  weights = nat_wt)
+  
+#define the aggregate function.####
+# aggregate_f <- function(report_areas,wt) {
+#   survey_design_l<-responses_longer %>% 
+#     filter(!is.na(response_text_analysis)) %>% 
+#     as_survey_design(
+#       strata = gp_prac_no, 
+#       fpc = eligible_pats,
+#       weights = {{wt}})
+#   responses_longer <- survey_design_l %>%
+#     group_by("report_area" = {{report_areas}},question,response_text_analysis)%>%
+#     summarise(n_response = n(),
+#               survey_prop(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")),
+#               survey_mean(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")),
+#               n_wgt_response = sum({{weights}},na.rm = TRUE), .groups = "keep")%>% 
+#        rename(wgt_percent = coef)
+# }
 
-survey_design_w<-responses_wider_nat %>% 
-  as_survey_design(
-    strata = gp_prac_no, 
-    fpc = eligible_pats,
-    weights = nat_wt_q13)
+#define the expand table function.####
+#Create an index of the required rows, then use to create a master table to ensure all possible option combinations exist
+expand_table <- function(df) {
+  idx <- rep(1:nrow(question_lookup), length(unique(df$report_area)))
+  expand.table <-  question_lookup[idx,]
+  expand.table <- expand.table %>%
+    mutate(report_area = rep(unique(df$report_area),nrow(question_lookup)))%>%
+    left_join(df,by = c("report_area","question","response_text_analysis"))
+}
 
-table(responses_longer$question[is.na(responses_longer$nat_wt)])
-table(responses_longer$response_option[is.na(responses_longer$nat_wt)])
-#define function to calculate CIs using survey package
+#run at each level####
+df <- aggregate_f(scotland,nat_wt)
+nat_agg <- expand_table(df) %>% mutate(level = "Scotland")
+
+df <- aggregate_f(practice_board_code,hb_wt)
+hb_agg <- expand_table(df)%>% mutate(level = "Health Board")
+
+df <- aggregate_f(practice_hscp_code,hscp_wt)
+hscp_agg <- expand_table(df)%>% mutate(level = "HSCP")
+
+df <- aggregate_f(practice_hscp_cluster,gpcl_wt)
+gpcl_agg <- expand_table(df)%>% mutate(level = "GPCL")
+
+df <- aggregate_f(gp_prac_no,gp_wt)
+gp_agg <- expand_table(df)%>% mutate(level = "GP")
+
+agg_output <- bind_rows(nat_agg,hb_agg,hscp_agg,gpcl_agg,gp_agg)
+agg_output <- agg_output %>%
+  group_by(report_area,question) %>%
+  mutate(n_includedresponses = sum(n_response,na.rm = TRUE),
+         n_wgt_includedresponses = sum(n_wgt_response,na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(percent_response = n_response / n_includedresponses * 100,
+         wgt_percent_response= n_wgt_response / n_wgt_includedresponses * 100) %>% 
+#Code to deal with 'tick all that apply' questions.Removes the "No" response to the "tick all that apply" questions
+  filter(!(substr(question,1,3) %in% information_questions_tata & response_text_analysis == "No"))
+
+result <- prop.test(agg_output$n_wgt_response, agg_output$n_wgt_includedresponses, conf.level = 0.95)
+print(result$conf.int)
+
+#add basic CI calculations here....####
+#this is not correct but added to allow progress
+survey_design_nat<-  as_survey_design(responses_longer %>% 
+                                        filter(!is.na(response_text_analysis)), 
+      strata = gp_prac_no, 
+      fpc = eligible_pats,
+      weights = nat_wt)
+
 get_survey_CIs <- function(x,survey_design_object,report_areas) {
   survey_design_object <- update(survey_design_object, analysis_var=factor(get(x)), grouping_var=factor(get(report_areas)))
   as.data.frame(confint(svyby(~analysis_var, by=~grouping_var, survey_design_object,svymean, na.rm=TRUE, deff="replace", keep.var=TRUE))) %>% 
@@ -90,116 +128,75 @@ get_survey_CIs <- function(x,survey_design_object,report_areas) {
     select(report_area, question, response_text_analysis, wgt_percent_low,wgt_percent_upp)%>% 
     remove_rownames(.)}
 
-#define aggregate_responses function
-aggregate_responses <- function(report_areas,survey_design,weights) {
-  survey_design %>% 
-    #filter(!is.na(response_text_analysis)) %>% 
-    group_by("report_area" = {{report_areas}},question,response_text) %>%
-    summarise(n_response = n(),
-              survey_prop(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")),
-              survey_mean(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")),
-              n_wgt_response = sum({{weights}},na.rm = TRUE),
-              .groups = "keep")%>% 
-    rename(wgt_percent = coef)}
+get_survey_CIs()
+agg_output <- agg_output %>%
+  mutate(confint(wgt_percent_response,level = 0.95))
 
-#need to test:
-#1 does shape (longer or wider) affect the result?
-#2 How do the results from srvyr compare to other ways of defining CIs?
-#Compare survey_prop to confint
-#svyciprop is for binary variables only, so this should also be true for survey_prop which is a wrapper. However, does seem to work for categorical vars.
-#https://www.rdocumentation.org/packages/survey/versions/4.4-8/topics/svyciprop - for binary variables only - could turn each variable into multiple indicators
+#add on report_area names
+#read in Practice lookup
 
-#deff = TRUE only tells it to return the design effect, not whether to use it.
+practice_lookup <- readRDS(paste0(lookup_path,"practice_lookup.rds"))
 
-compare <- survey_design_w %>% 
-  group_by(response_text_q13) %>% 
-  summarise(survey_prop(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit"))) %>% 
-  rename(prop_wgt_percent = coef,prop_low = `_low`,prop_upp = `_upp`) %>% 
-  cbind(
-  survey_design_w %>% 
-  group_by(response_text_q13) %>% 
-  summarise(survey_mean(na.rm = TRUE,proportion = FALSE,vartype = c("ci"),level = 0.95,prop_method = c("logit"))) %>% 
-  rename(mean_wgt_percent = coef,mean_low = `_low`,mean_upp = `_upp`) %>% 
-    select(-response_text_q13))  %>% 
-  cbind(
-    as.data.frame(confint(svymean(~response_text_q13, survey_design_w))) %>% 
-      rename(confint_low = `2.5 %`,
-             confint_upp = `97.5 %`) %>% 
-      mutate(response = rownames(.)) %>% 
-      remove_rownames(.)
-)
-  
-  
-#confint(svyby(~survey_design_w$response_text_q13, survey_design_w,svymean, na.rm=TRUE, deff="replace", keep.var=TRUE))
-    
-model <- as.data.frame(confint(svymean(~response_text_q13, survey_design_w))) %>% 
-  rename(wgt_percent_low = `2.5 %`,
-         wgt_percent_upp = `97.5 %`) %>% 
-  mutate(response = rownames(.)) %>% 
-  remove_rownames(.)
-  
-confint(model)
-    
-#survey_mean(na.rm = TRUE,vartype = c("ci"),level = 0.95,prop_method = c("logit")))
+agg_output <- agg_output  %>% 
+  left_join(distinct(practice_lookup,gp_prac_no,practice_name_letter),by = c("report_area" = "gp_prac_no")) %>% 
+  left_join(distinct(practice_lookup,practice_board_code,practice_board_name),by = c("report_area" = "practice_board_code"))%>% 
+  left_join(distinct(practice_lookup,practice_hscp_code,practice_hscp_name),by = c("report_area" = "practice_hscp_code"))%>% 
+  mutate(report_area_name = case_when(level == "GP" ~ paste0(practice_name_letter," (",report_area,")"),
+                                      level == "Health Board" ~ gsub(" and "," & ",practice_board_name),
+                                      level == "HSCP" ~ practice_hscp_name,
+                                      level %in% c("Scotland","GPCL")~ report_area, TRUE ~ "Error")) %>% 
+  select(-practice_name_letter,-practice_board_name,-practice_hscp_name)
 
-# nat %>%   group_by(question,response_text) %>%
-#   survey_tally(vartype = c("ci")) 
-
-#https://stackoverflow.com/questions/14112508/confidence-intervals-of-svyby-proportion
-
-#run at each level####
-#nat_cis <- lapply(questions, function (x) get_survey_CIs(x,surveydesign_nat,"scotland")) %>%  bind_rows() %>% mutate(level = "Scotland")
-
-nat <- aggregate_responses(scotland,nat_wt) 
-nat_sCIs <- get_survey_CIs("response_text_q13",survey_design_w,"scotland")
-
-nat <- nat_cis %>%   left_join(nat,by = c("report_area","question","response_text_analysis"))
-
-
-
-
-
+sum(agg_output$report_area_name == "Error") #check. Should be 0
 
 #add on completed forms and sample size####
-#read in sample size, forms completed, 
+#read in sample size, list completed, 
 sample_size <- readRDS(paste0(analysis_output_path,"sample_size_net_of_pse.rds"))
-forms_completed <- readRDS(paste0(analysis_output_path,"forms_completed_list.rds"))
+forms_completed_list <- readRDS(paste0(analysis_output_path,"forms_completed_list.rds"))
 
-info_output <- info_output %>% 
+agg_output<- agg_output %>% 
   left_join(forms_completed_list, by = c("level","report_area")) %>% 
-  left_join(sample_size_list, by = c("level","report_area")) %>% 
-  mutate(Response_Rate_perc = forms_completed / sample_pop * 100)
+  left_join(sample_size, by = c("level","report_area")) %>% 
+  mutate(Response_Rate_perc = forms_completed / net_sample_pop * 100)
 
 ####add on historical data####
-info_questions_historical <- readRDS(paste0(historical_data_path,"info_questions_sg.rds"))
+info_questions_historical <- readRDS(paste0(analysis_output_path_202324,"info_questions_sg.rds"))
 ls(info_questions_historical,sorted = FALSE)
 table(info_questions_historical$Level)
 
 #take out GP and GP Cluster data, and remove unnecessary variables
 info_questions_historical <- info_questions_historical %>% 
-                            filter(!Level %in% c("GP","GPCL")) %>% 
-                            mutate(in_historical_file = 1) %>% 
-                            select(-Forms_completed,-N_IncludedResponses,-sample_size,
-                                  -SurveySection,-Question_text,-Response_Rate_perc, -sample_size,-SurveySection  ) %>% 
-                            rename_with(tolower) 
+  filter(!Level %in% c("GP","GPCL")) %>% 
+  mutate(in_historical_file = 1) %>% 
+  select(-Forms_completed,-N_IncludedResponses,-sample_size,
+         -SurveySection,-Question_text,-Response_Rate_perc, -sample_size,-SurveySection  ) %>% 
+  rename_with(tolower) 
 
-#Read in info_output_all_historic_q10.rds and bind onto info_questions_historical.
-q10_hist <- readRDS(paste0(output_path ,"analysis_output/Q10 INFO reconfig/info_output_all_historic_q10.rds"))
-common_col_names <- intersect(names(info_questions_historical),names(q10_hist))
-info_questions_historical <- rbind(info_questions_historical, q10_hist) 
+pnn_questions_historical <- readRDS(paste0(analysis_output_path_202324,"pnn_output_sg.rds"))
+pnn_nat_historical <- readRDS(paste0(analysis_output_path_202324,"nat_pnn.rds"))
+ls(pnn_questions_historical,sorted = FALSE)
+#take out GP and GP Cluster data, remove unnecessary variables and pivot wider
+pnn_questions_historical <- pnn_questions_historical %>% 
+  filter(!level %in% c("GP","GPCL")) %>% 
+  mutate(in_historical_file = 1) %>% 
+  select(question,report_area_name_2024,report_area,level,starts_with("wgt_p")) 
 
-#Is anything like this needed for 2024?
-#remove q12 "Community Link worker" from info_questions_historical and update response_option for "Another Healthcare worker" from 7 to 6 in order to match onto info_output
-# info_questions_historical <- subset(info_questions_historical, info_questions_historical$response_text != "Community Link Worker")
-# info_questions_historical$response_option [info_questions_historical$question_2020 == "q12"
-#                                           & info_questions_historical$response_text == "Another healthcare professional" 
-#                                           & info_questions_historical$response_option == "7" ] <- "6"
-# info_questions_historical$response_text[info_questions_historical$response_text == "Another healthcare professional"] <- "Another Healthcare professional"
+%>% 
+  
+  #rename so that can use in pivot longer
+  rename_with(.fn = ~ str_replace_all(., "_percent", "_percent-"))
+
+
+pnn_questions_historical_l <- pnn_questions_historical %>% 
+  pivot_longer(cols= c(wgt_percentpositive,wgt_percentneutral,wgt_percentnegative),
+                        names_to = c("response_text"),values_to = c("wgt_percent_response")) %>% 
+                cols= c(wgt_percentpositive,wgt_percentneutral,wgt_percentnegative),
+names_to = c("response_text"),values_to = c("wgt_percent_response")
 
 #join info_output and info_questions_historical
 info_output_full <- info_output %>% 
-        left_join(info_questions_historical,by = c("question_2022","response_option" = "responseoption","level","report_area_name"= "report_area"),suffix=c("2024","hist")) %>%
-        rename("question_2024"="question")
+  left_join(info_questions_historical,by = c("question_2022","response_option" = "responseoption","level","report_area_name"= "report_area"),suffix=c("2024","hist")) %>%
+  rename("question_2024"="question")
 
 #info_output is intended to be a full version of the data
 info_output_full <- info_output_full %>% 
@@ -209,28 +206,3 @@ info_output_full <- info_output_full %>%
 hist.file <- readRDS(paste0(analysis_output_path,"info_output_full.rds"))
 identical(info_output_full,hist.file)
 saveRDS(info_output_full, paste0(analysis_output_path,"info_output_full.rds"))
-
-#Rename variables for consistency with previous files. Is this still needed?
-oldnames <- c("level","report_area_name","question_2024","question_text","surveysection","response_option","response_text2024",
-              "n_includedresponses","n_response", "wgt_percent_response","n_response_2022","wgt_percent_response_2022","n_response_2020","wgt_percent_response_2020",
-              "n_response_2018","wgt_percent_response_2018","n_response_2016","wgt_percent_response_2016",
-              "n_response_2014","wgt_percent_response_2014","forms_completed","sample_pop","Response_Rate_perc")
-newnames <- c("Level","Report_Area","Question_2024","Question_text","SurveySection","ResponseOption","Response_text",
-              "N_IncludedResponses","N_Response_2024", "Wgt_Percent_Response_2024","N_Response_2022", "Wgt_Percent_Response_2022","N_Response_2020","Wgt_Percent_Response_2020",
-              "N_Response_2018","Wgt_Percent_Response_2018","N_Response_2016","Wgt_Percent_Response_2016",
-              "N_Response_2014","Wgt_Percent_Response_2014","Forms_completed","sample_size","Response_Rate_perc")
-
-info_questions <- info_output_full %>% 
-  rename_with(~newnames, .cols = all_of(oldnames))%>% 
-  select(all_of(newnames))
-
-#check if the same as before
-hist.file_sg <- readRDS(paste0(analysis_output_path,"/info_questions_sg.rds"))
-hist.file_sg <- hist.file_sg %>% arrange(Level,Report_Area,Question_2024,ResponseOption)
-
-info_questions <- info_questions %>% arrange(Level,Report_Area,Question_2024,ResponseOption)
-identical(info_questions,hist.file_sg)
-#file.remove(paste0(analysis_output_path,"info_questions_sg.rds"))
-saveRDS(info_questions, paste0(analysis_output_path,"/info_questions_sg.rds"))
-
-write.xlsx(info_questions, paste0(analysis_output_path,"info_questions_sg.xlsx"))
