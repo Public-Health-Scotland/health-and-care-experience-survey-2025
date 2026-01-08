@@ -42,7 +42,7 @@ responses_longer <- responses %>%
 question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds"))
 
 responses_longer <- responses_longer %>% 
-  left_join(select(question_lookup,question,response_code,weight),by = c("question","response_code"))
+  left_join(select(question_lookup,question,response_code,response_text_analysis,weight),by = c("question","response_code"))
 
 #select weight for each question####
 responses_longer <- responses_longer%>%
@@ -52,38 +52,38 @@ responses_longer <- responses_longer%>%
                               weight == "T4_Wt_Final" ~ nat_s4_wt,
                               weight == "T5_Wt_Final" ~ nat_s5_wt,
                               weight == "T6_Wt_Final" ~ nat_s6_wt,
-                              weight == "No_Weight" ~ 1),
+                              weight == "No Weight" ~ 1),
          'hb_wt' = case_when(weight == "T1_Wt_Final" ~ hb_s1_wt,
                              weight == "T2_Wt_Final" ~ hb_s2_wt,
                              weight == "T3_Wt_Final" ~ hb_s3_wt,
                              weight == "T4_Wt_Final" ~ hb_s4_wt,
                              weight == "T5_Wt_Final" ~ hb_s5_wt,
                              weight == "T6_Wt_Final" ~ hb_s6_wt,
-                             weight == "No_Weight" ~ 1),
+                             weight == "No Weight" ~ 1),
          'hscp_wt' = case_when(weight == "T1_Wt_Final" ~ hscp_s1_wt,
                                weight == "T2_Wt_Final" ~ hscp_s2_wt,
                                weight == "T3_Wt_Final" ~ hscp_s3_wt,
                                weight == "T4_Wt_Final" ~ hscp_s4_wt,
                                weight == "T5_Wt_Final" ~ hscp_s5_wt,
                                weight == "T6_Wt_Final" ~ hscp_s6_wt,
-                               weight == "No_Weight" ~ 1),
+                               weight == "No Weight" ~ 1),
          'gpcl_wt' = case_when(weight == "T1_Wt_Final" ~ gpcl_s1_wt,
                                weight == "T2_Wt_Final" ~ gpcl_s2_wt,
                                weight == "T3_Wt_Final" ~ gpcl_s3_wt,
                                weight == "T4_Wt_Final" ~ gpcl_s4_wt,
                                weight == "T5_Wt_Final" ~ gpcl_s5_wt,
                                weight == "T6_Wt_Final" ~ gpcl_s6_wt,
-                               weight == "No_Weight" ~ 1),
+                               weight == "No Weight" ~ 1),
          'gp_wt' = case_when(weight == "T1_Wt_Final" ~ gp_s1_wt,
                              weight == "T2_Wt_Final" ~ gp_s2_wt,
                              weight == "T3_Wt_Final" ~ gp_s3_wt,
                              weight == "T4_Wt_Final" ~ gp_s4_wt,
                              weight == "T5_Wt_Final" ~ gp_s5_wt,
                              weight == "T6_Wt_Final" ~ gp_s6_wt,
-                             weight == "No_Weight" ~ 1))
+                             weight == "No Weight" ~ 1))
 
 responses_longer <- responses_longer %>% 
-  select("patientid",all_of(report_areas),all_of(report_area_wt),question,response_code,eligible_pats)
+  select("patientid",all_of(report_areas),all_of(report_area_wt),question,response_code,response_text_analysis,eligible_pats)
 
 #check if the same as before, then save new file
 hist.file <- readRDS(paste0(analysis_output_path,"responses_longer.rds"))
