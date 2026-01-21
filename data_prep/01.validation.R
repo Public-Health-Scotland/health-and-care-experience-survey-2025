@@ -565,6 +565,10 @@ for (sheet in rule_list) {
 
 # for (sheet in rule_list) {   #this doesn't work! there is a longform below
 #   write_out_list_f(sheet)}
+
+# lapply(seq_along(rule_list), function(x) {#something new to try
+#   write_out_list_f(sheet,x)})
+
 #lapply(rule_list,write_out_list_f) #this doesn't work! there is a longform below
 write_out_list_f(post_validation_freq)
 write_out_list_f(pre_validation_freq)

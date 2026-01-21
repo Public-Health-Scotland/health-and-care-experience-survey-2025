@@ -18,6 +18,8 @@
 #"output/temp/forms_completed_list.rds" - created in script 01.create_responses_longer
 #"historical_data_path,"info_questions_sg.rds"
 
+#Question 6 is wrong - shouldn't have a Don't know option at this stage
+
 #Outputs: 
 #analysis_output_path,"agg_output.rds"
 
@@ -102,54 +104,9 @@ forms_completed_list <- readRDS(paste0(analysis_output_path,"forms_completed_lis
 agg_output<- agg_output %>% 
   left_join(forms_completed_list, by = c("level","report_area")) %>% 
   left_join(sample_size, by = c("level","report_area")) %>% 
-  mutate(Response_Rate_perc = forms_completed / net_sample_pop * 100)
+  mutate(response_rate_perc = forms_completed / net_sample_pop * 100)
 
 saveRDS(agg_output,paste0(analysis_output_path,"agg_output.rds"))
 
-####add on historical data####
-info_questions_historical <- readRDS(paste0(analysis_output_path_202324,"info_questions_sg.rds"))
-ls(info_questions_historical,sorted = FALSE)
-table(info_questions_historical$Level)
-
-#take out GP and GP Cluster data, and remove unnecessary variables
-info_questions_historical <- info_questions_historical %>% 
-  filter(!Level %in% c("GP","GPCL")) %>% 
-  mutate(in_historical_file = 1) %>% 
-  select(-Forms_completed,-N_IncludedResponses,-sample_size,
-         -SurveySection,-Question_text,-Response_Rate_perc, -sample_size,-SurveySection  ) %>% 
-  rename_with(tolower) 
-
-pnn_questions_historical <- readRDS(paste0(analysis_output_path_202324,"pnn_output_sg.rds"))
-pnn_nat_historical <- readRDS(paste0(analysis_output_path_202324,"nat_pnn.rds"))
-ls(pnn_questions_historical,sorted = FALSE)
-#take out GP and GP Cluster data, remove unnecessary variables and pivot wider
-pnn_questions_historical <- pnn_questions_historical %>% 
-  filter(!level %in% c("GP","GPCL")) %>% 
-  mutate(in_historical_file = 1) %>% 
-  select(question,report_area_name_2024,report_area,level,starts_with("wgt_p")) 
-
-%>% 
-  
-  #rename so that can use in pivot longer
-  rename_with(.fn = ~ str_replace_all(., "_percent", "_percent-"))
 
 
-pnn_questions_historical_l <- pnn_questions_historical %>% 
-  pivot_longer(cols= c(wgt_percentpositive,wgt_percentneutral,wgt_percentnegative),
-                        names_to = c("response_text"),values_to = c("wgt_percent_response")) %>% 
-                cols= c(wgt_percentpositive,wgt_percentneutral,wgt_percentnegative),
-names_to = c("response_text"),values_to = c("wgt_percent_response")
-
-#join info_output and info_questions_historical
-info_output_full <- info_output %>% 
-  left_join(info_questions_historical,by = c("question_2022","response_option" = "responseoption","level","report_area_name"= "report_area"),suffix=c("2024","hist")) %>%
-  rename("question_2024"="question")
-
-#info_output is intended to be a full version of the data
-info_output_full <- info_output_full %>% 
-  select(-in_historical_file,-response_texthist) %>%  #ch removed responseoption. Not sure why it was there
-  rename("report_area_code"= "report_area")
-
-hist.file <- readRDS(paste0(analysis_output_path,"info_output_full.rds"))
-identical(info_output_full,hist.file)
-saveRDS(info_output_full, paste0(analysis_output_path,"info_output_full.rds"))
