@@ -24,3 +24,4 @@ weights_path_202324 <- "/conf/bss/pat-exp-surveys/health-and-care/202324/output/
 output_path_202324   <- "/conf/bss/pat-exp-surveys/health-and-care/202324/output/"
 historical_data_path_202324 <- "/conf/bss/pat-exp-surveys/health-and-care/202122/output/analysis_output/"
 
+analysis_output_path_all_years <- "/conf/bss/pat-exp-surveys/health-and-care/All_Years/reworked_surveys_pre_2021/output/"

@@ -50,11 +50,17 @@ question_mapping <- question_mapping %>%
 
 table(question_mapping$comparability)
 information_questions_tata <- unique(substr(question_mapping$question,1,3)[question_mapping$`tick all that apply (tata)` == "Y"])
-
+question_mapping$`response option…2021-22`
 question_lookup <- question_mapping %>%
   filter(!iref == "-") %>% 
   mutate(question_2024 = if_else(`comparability` %in% c("Dashboard","Commentary"),`quest. no. prev year`,""),
-         response_code_2024 = if_else(`comparability` %in% c("Dashboard","Commentary"),`quest. no. prev year`,""))%>%
+         response_code_2024 = if_else(`comparability` %in% c("Dashboard","Commentary"),`response option…2023-24`,""),
+         question_2022 = if_else(`comparability` %in% c("Dashboard","Commentary"),`compare to…2021-22`,""),
+         response_code_2022 = if_else(`comparability` %in% c("Dashboard","Commentary"),`response option…2021-22`,""),
+         question_2020 = if_else(`comparability` %in% c("Dashboard","Commentary"),`compare to…2019-20`,""),
+         response_code_2020 = if_else(`comparability` %in% c("Dashboard","Commentary"),`response option…2019-20`,""),
+         question_2018 = if_else(`comparability` %in% c("Dashboard","Commentary"),`compare to…2017-18`,""),
+         response_code_2018 = if_else(`comparability` %in% c("Dashboard","Commentary"),`response option…2017-18`,""))%>%
   #recoding to deal with tata type questions, can't have identical responses text
   mutate(response_text_analysis = case_when(substr(question,1,3) %in% information_questions_tata & response_text == "No" ~ "No", TRUE ~ response_text_dashboard)) %>% 
   #recoding to deal with non-dashboard questions, can't have empty text
@@ -63,12 +69,14 @@ question_lookup <- question_mapping %>%
   mutate(response_text_analysis = case_when(question_type == "Percent positive" & grepl("positive",processing) == TRUE ~ "Positive",
                                             question_type == "Percent positive" & grepl("negative",processing) == TRUE ~ "Negative",
                                             question_type == "Percent positive" & grepl("neutral",processing) == TRUE ~ "Neutral", TRUE ~ response_text_analysis))%>%
-  select(iref,question,question_text,weight,response_code,response_text_analysis,topic,question_2024,response_code_2024)
+  select(iref,question,question_text,weight,response_code,response_text_analysis,topic,question_2024,response_code_2024,
+         question_2022,response_code_2022,question_2020,response_code_2020,question_2018,response_code_2018)
 
 #check if the same as before, then save
 hist.file <- readRDS(paste0(lookup_path,"question_lookup.rds"))
 all.equal(hist.file,question_lookup)
 saveRDS(question_lookup, paste0(lookup_path,"question_lookup.rds"))
+
 
 # question_lookup_pnn <- question_mapping %>%
 #   filter(question_type == "Percent positive")%>%
