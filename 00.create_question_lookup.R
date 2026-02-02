@@ -68,7 +68,9 @@ question_lookup <- question_mapping %>%
   #recoding to deal with PPN questions
   mutate(response_text_analysis = case_when(question_type == "Percent positive" & grepl("positive",processing) == TRUE ~ "Positive",
                                             question_type == "Percent positive" & grepl("negative",processing) == TRUE ~ "Negative",
-                                            question_type == "Percent positive" & grepl("neutral",processing) == TRUE ~ "Neutral", TRUE ~ response_text_analysis))%>%
+                                            question_type == "Percent positive" & grepl("neutral",processing) == TRUE ~ "Neutral", 
+                                            question_type == "Percent positive" & grepl("exclude",processing) == TRUE ~ "Exclude",
+                                            TRUE ~ response_text_analysis))%>%
   select(iref,question,question_text,weight,response_code,response_text_analysis,topic,question_2024,response_code_2024,
          question_2022,response_code_2022,question_2020,response_code_2020,question_2018,response_code_2018)
 

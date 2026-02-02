@@ -3,7 +3,7 @@
 # Name of file: 04.add_historical_data.R
 # Description of content:  Reads in current and links to historical aggregate data and outputs analyses at all levels of reporting.
 # 
-# Approximate run time: 35 min
+# Approximate run time: 1 mins
 # 
 # Approximate memory usage: 1 GiB
 # 
@@ -43,7 +43,19 @@ agg_output_pnn_202122 <- readRDS(paste0(analysis_output_path_all_years,"agg_outp
 agg_output_pnn <- agg_output_pnn %>% 
   left_join(agg_output_pnn_202122, by = c("level","report_area","question_2022","response_text_analysis" = "response_text_analysis_2022"))
 
-#split out infon questions
+#map on 201920 pnn data 
+agg_output_pnn_201920 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_pnn_201920.rds"))
+agg_output_pnn <- agg_output_pnn %>% 
+  left_join(agg_output_pnn_201920, by = c("level","report_area","question_2020","response_text_analysis" = "response_text_analysis_2020"))
+
+#map on 201718 pnn data 
+agg_output_pnn_201718 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_pnn_201718.rds"))
+agg_output_pnn_201718 <- agg_output_pnn_201718 %>% 
+  mutate(response_text_analysis_2018 = trimws(response_text_analysis_2018))
+agg_output_pnn <- agg_output_pnn %>% 
+  left_join(agg_output_pnn_201718, by = c("level","report_area","question_2018","response_text_analysis" = "response_text_analysis_2018"))
+
+#split out info questions
 agg_output_info <- agg_output %>% filter(question %in% information_questions) %>% 
   left_join(question_lookup,by = c("question","response_text_analysis"))
 
@@ -57,25 +69,25 @@ agg_output_info_202122 <- readRDS(paste0(analysis_output_path_all_years,"agg_out
 agg_output_info <- agg_output_info %>% 
   left_join(agg_output_info_202122, by = c("level","report_area","question_2022","response_code_2022"))
 
+#map on 201920 info data. Here, the code is within the response_text_analysis field
+agg_output_info_201920 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_201920.rds"))
+agg_output_info <- agg_output_info %>% 
+  left_join(agg_output_info_201920, by = c("level","report_area","question_2020","response_code_2020" = "response_text_analysis_2020"))
+
+#map on 201718 info data. Here, the code is within the response_text_analysis field
+agg_output_info_201718 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_201718.rds"))
+agg_output_info_201718 <- agg_output_info_201718 %>% 
+  mutate(response_text_analysis_2018 = trimws(response_text_analysis_2018))
+agg_output_info <- agg_output_info %>% 
+  left_join(agg_output_info_201718, by = c("level","report_area","question_2018","response_code_2018" = "response_text_analysis_2018"))
+
 #bring PNN and aggregate questions back together
 agg_output_full <- agg_output_info %>% 
   bind_rows(agg_output_pnn)
 
-#map on 201920 data. Here, response code is within the response_text analysis field, so no need to split into pnn/info
-agg_output_201920 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_201920.rds"))
-agg_output_full <- agg_output_full %>% 
-  left_join(agg_output_201920, by = c("level","report_area","question_2020","response_text_analysis" = "response_text_analysis_2020"))
-
-#map on 201718 data 
-agg_output_201718 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_201718.rds"))
-agg_output_full <- agg_output_full %>% 
-  left_join(agg_output_201718, by = c("level","report_area","question_2018","response_text_analysis" = "response_text_analysis_2018"))
-
-ls(agg_output_full)
-
 #re-order and keep only required variables
 agg_output_full <- agg_output_full %>% 
-  select(level,report_area,report_area_name,forms_completed_2026,net_sample_pop_2026,"response_rate_perc_2026" = Response_Rate_perc_2026,
+  select(level,report_area,report_area_name,
          topic,question,question_text,response_code,
          n_includedresponses_2026,n_response_2026,percent_2026,
          n_wgt_includedresponses_2026,n_wgt_response_2026,wgt_percent_2026,wgt_percent_low_2026,wgt_percent_upp_2026,
@@ -85,10 +97,9 @@ agg_output_full <- agg_output_full %>%
          wgt_percent_2018,wgt_percent_low_2018,wgt_percent_upp_2018)
   
 hist.file <- readRDS(paste0(analysis_output_path,"agg_output_full.rds"))
-identical(agg_output_full,hist.file)
+all.equal(agg_output_full,hist.file)
 saveRDS(agg_output_full, paste0(analysis_output_path,"agg_output_full.rds"))
 
 
-
-
+write_csv(agg_output_full, paste0(analysis_output_path,"agg_output_full_",today(),".csv"))
 
