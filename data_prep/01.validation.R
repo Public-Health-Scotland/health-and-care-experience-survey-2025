@@ -18,7 +18,6 @@ source("00.set_up_file_paths.R")
 source("00.functions.R")
 
 #Step 1: Read in unrouted results received from contractor#### 
-#CH can we get file creation time?
 contractor_data <- read.xlsx(paste0(data_path,"Results from Contractor/HA25_Interim_v1.xlsx"), sheet = "HA25_DATA")
 
 #Rename Variables as necessary: 
@@ -557,19 +556,34 @@ for(i in seq_along(x)) {
 }
 }
 
+write_out_list_f2 <- function(x) {  # function to write list of tables to single excel sheet
+  curr_row <- 1
+  for(i in seq_along(x)) {
+    x = get(x)
+    writeData(template, deparse(substitute(x)),names(x)[i], startCol = 1, startRow = curr_row)
+    writeData(template, deparse(substitute(x)),x[[i]], startCol = 1, startRow = curr_row+1)
+    curr_row <- curr_row + nrow(x[[i]]) + 2
+  }
+}
+
+# write_out_list_f3 <- function(x) {  # function to write list of tables to single excel sheet
+#   curr_row <- 1
+#   for(i in seq_along(x)) {
+#     writeData(template, x ,names(get(x))[i], startCol = 1, startRow = curr_row)
+#     writeData(template, x ,get(x)[[i]], startCol = 1, startRow = curr_row+1)
+#     curr_row <- curr_row + nrow(get(x)[[i]]) + 2
+#   }
+# }
+
 ###########################################################################################################################################
 #Complete template####
 template <- loadWorkbook(paste0(analysis_output_path,"file_overview_template.xlsx"))
 for (sheet in rule_list) {
   addWorksheet(template, sheet)}
 
-# for (sheet in rule_list) {   #this doesn't work! there is a longform below
-#   write_out_list_f(sheet)}
-
-# lapply(seq_along(rule_list), function(x) {#something new to try
-#   write_out_list_f(sheet,x)})
-
-#lapply(rule_list,write_out_list_f) #this doesn't work! there is a longform below
+# lapply(rule_list,write_out_list_f) #this doesn't work! there is a longform below
+# for (sheet in rule_list) {
+#   write_out_list_f3(sheet)}
 write_out_list_f(post_validation_freq)
 write_out_list_f(pre_validation_freq)
 write_out_list_f(Rule02a_post)
