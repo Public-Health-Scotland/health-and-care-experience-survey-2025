@@ -18,8 +18,6 @@
 #"output/temp/forms_completed_list.rds" - created in script 01.create_responses_longer
 #"historical_data_path,"info_questions_sg.rds"
 
-#Question 6 is wrong - shouldn't have a Don't know option at this stage
-
 #Outputs: 
 #analysis_output_path,"agg_output.rds"
 
@@ -42,7 +40,7 @@ options(survey.lonely.psu="remove")
 
 #define function to aggregate questions and add on CIs
 aggregate_f <- function(report_areas,wt,x) {
-  responses.list[[x]] %>% filter(!is.na(response_text_analysis)) %>% 
+  responses.list[[x]] %>% filter(!is.na(response_text_analysis) & response_text_analysis != "Exclude") %>% 
     as_survey_design(id = 1,strata = gp_prac_no, fpc = eligible_pats,weights = {{wt}}) %>% 
     group_by(question,{{report_areas}},response_text_analysis) %>%
     summarise(mean = survey_mean(na.rm = TRUE, vartype = c("ci"),deff = TRUE),
@@ -96,15 +94,15 @@ agg_output <- agg_output  %>%
 
 sum(agg_output$report_area_name == "Error") #check. Should be 0
 
-#add on completed forms and sample size####
+#add on completed forms and sample size#### #CH - remove this section
 #read in sample size, list completed, 
-sample_size <- readRDS(paste0(analysis_output_path,"sample_size_net_of_pse.rds"))
-forms_completed_list <- readRDS(paste0(analysis_output_path,"forms_completed_list.rds"))
-
-agg_output<- agg_output %>% 
-  left_join(forms_completed_list, by = c("level","report_area")) %>% 
-  left_join(sample_size, by = c("level","report_area")) %>% 
-  mutate(response_rate_perc = forms_completed / net_sample_pop * 100)
+# sample_size <- readRDS(paste0(analysis_output_path,"sample_size_net_of_pse.rds"))
+# forms_completed_list <- readRDS(paste0(analysis_output_path,"forms_completed_list.rds"))
+# 
+# agg_output<- agg_output %>% 
+#   left_join(forms_completed_list, by = c("level","report_area")) %>% 
+#   left_join(sample_size, by = c("level","report_area")) %>% 
+#   mutate(response_rate_perc = forms_completed / net_sample_pop * 100)
 
 saveRDS(agg_output,paste0(analysis_output_path,"agg_output.rds"))
 
