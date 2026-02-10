@@ -1,8 +1,8 @@
-# WIP: November 2025
+# WIP: February 2026
 # *****************************************
 #Purpose: Reads in patient level data for HACE 2025 Survey and applies and checks validation rules
 
-#Inputs: Raw data received from contractor -  HA25_Interim_v1.xlsx#UPDATE!
+#Inputs: Raw data received from contractor -  HA25_Final_Data_v1.xlsx#UPDATE!
 
 #Outputs: #UPDATE!
 #"Final_unrouted_data.Rds"
@@ -18,7 +18,7 @@ source("00.set_up_file_paths.R")
 source("00.functions.R")
 
 #Step 1: Read in unrouted results received from contractor#### 
-contractor_data <- read.xlsx(paste0(data_path,"Results from Contractor/HA25_Interim_v1.xlsx"), sheet = "HA25_DATA")
+contractor_data <- read.xlsx(paste0(data_path,"Results from Contractor/Final data/HA25_Final_Data_v1.xlsx"), sheet = "RESPONSES")
 
 #Rename Variables as necessary: 
 contractor_data <- contractor_data %>% 
@@ -34,7 +34,7 @@ contractor_data <- contractor_data %>%
          across(all_of(questions), ~ as.character(.))) #all response options as character
 
 #variables for file summary
-summary_file_name <-"HA25_Interim_v1.xls"
+summary_file_name <-"HA25_Final_Data_v1.xlsx"
 summary_duplicates <- sum(duplicated(contractor_data$patientid))
 summary_variables <- sapply(contractor_data, class)#Check classification of each column
 response_codes <- tabyl(contractor_data,responsecode,responsesubcode)
@@ -47,10 +47,10 @@ contractor_data <- contractor_data %>%
   relocate(patientid_sg, .after = patientid)
 
 #check if the same as before
-hist.file <- readRDS(paste0(data_path,"Results from Contractor/interim_unrouted_data.rds"))
+hist.file <- readRDS(paste0(data_path,"Results from Contractor/Final data/final_unrouted_data.rds"))
 all.equal(hist.file,contractor_data) 
 #Save out reformatted data
-saveRDS(contractor_data, file=paste0(data_path,"Results from Contractor/interim_unrouted_data.rds") )
+saveRDS(contractor_data, file=paste0(data_path,"Results from Contractor/Final data/final_unrouted_data.rds") )
 
 #Create anonymised version of unvalidated data as received from QH for SG:
 SGFile <- contractor_data %>% 
