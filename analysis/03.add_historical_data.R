@@ -15,7 +15,6 @@ source("00.functions.R")
 
 #recode 'no change'?
 #Questions to check Q6 2024 - need to explicitly exclude exclude option, Q6 2018 has multiple mapped response options
-#add question text too
 
 ####add on historical data####
 agg_output <- readRDS(paste0(analysis_output_path,"agg_output.rds")) %>% 
@@ -88,7 +87,11 @@ agg_output_full <- agg_output_info %>%
 #re-order and keep only required variables
 agg_output_full <- agg_output_full %>% 
   select(level,report_area,report_area_name,
+<<<<<<< HEAD:analysis/03.add_historical_data.R
+         question,question_text,response_code,response_text_analysis,
+=======
          topic,question,question_text,response_code,
+>>>>>>> 39e82cddfb26fdf848d18dba621b67fc575fd463:analysis/04.add_historical_data.R
          n_includedresponses_2026,n_response_2026,percent_2026,
          n_wgt_includedresponses_2026,n_wgt_response_2026,wgt_percent_2026,wgt_percent_low_2026,wgt_percent_upp_2026,
          wgt_percent_2024,wgt_percent_low_2024,wgt_percent_upp_2024,
@@ -100,6 +103,9 @@ hist.file <- readRDS(paste0(analysis_output_path,"agg_output_full.rds"))
 all.equal(agg_output_full,hist.file)
 saveRDS(agg_output_full, paste0(analysis_output_path,"agg_output_full.rds"))
 
+<<<<<<< HEAD:analysis/03.add_historical_data.R
+=======
 
+>>>>>>> 39e82cddfb26fdf848d18dba621b67fc575fd463:analysis/04.add_historical_data.R
 write_csv(agg_output_full, paste0(analysis_output_path,"agg_output_full_",today(),".csv"))
 
