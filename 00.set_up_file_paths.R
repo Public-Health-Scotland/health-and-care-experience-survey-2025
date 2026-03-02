@@ -1,7 +1,5 @@
 # Name of file: 00.setup_file_paths.R
 # 
-# Original author(s): Catriona Haddow
-# 
 # Description of content: Set up file paths to be used throughout project
 # 
 # Approximate run time: <1 min

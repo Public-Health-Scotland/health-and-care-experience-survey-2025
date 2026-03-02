@@ -42,7 +42,8 @@ sample <- sample %>%
   relocate(c(patient_hscp_locality,patient_ca_locality), .before = iqvia_exclude) %>% #relocate patient_hscp_locality and patient_ca_locality
   mutate(age_band_2 = two_age_bands(age),#Add age groups
          age_band_3 = three_age_bands(age),
-         age_band_6 = six_age_bands(age))
+         age_band_6 = six_age_bands(age),
+         age_band_sc = social_care_age_bands(age))
 
 #read in validated results to match in patientid(PHS), patientid_SG + response.code(flag) to filter out non-respondents for sg.
 validated_results <- readRDS(paste0(data_path,"results/data_Validated_results.rds"))
@@ -67,6 +68,8 @@ hist.file <- readRDS(paste0(lookup_path,"patientID_info.rds"))
 all.equal(hist.file,sample)
 saveRDS(sample,paste0(lookup_path,"patientID_info.rds"))
 
+table(sample$age,sample$age_band_sc,useNA = c("always"))
+
 #save, dropping age, patient identifiers and QH exclusion reasons.
 sample_for_SG <- sample %>%
                  filter (responsecode == 1) %>% #filter only respondents to the survey
@@ -75,12 +78,10 @@ sample_for_SG <- sample %>%
                        -patient_hscp_locality, -patient_ca_locality,-pre_survey_exclusion,-primary_exclusion_source)
 
 #check if the same as before
-hist.file <- readRDS(paste0(output_path,"sampling/sample_for_SG.rds"))
+hist.file <- readRDS(paste0(lookup_path,"sample_for_SG.rds"))
 all.equal(hist.file,sample_for_SG)
 #Save out anonymised version of validated data for SG as rds
-saveRDS(sample_for_SG,paste0(output_path,"sampling/sample_for_SG.rds"))
-
-table(sample$reason,sample$iqvia_exclude) # CH - to output?
+saveRDS(sample_for_SG,paste0(lookup_path,"sample_for_SG.rds"))
 
 #Step 2. Calculate sample size by practice####
 sample_size_by_gp <- sample %>%
