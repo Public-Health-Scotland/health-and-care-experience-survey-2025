@@ -59,4 +59,15 @@ six_age_bands <- function(age) {
   
 }
 
+social_care_age_bands <- function(age) {
+  
+  social_care_age_bands <- character(length(age))
+  social_care_age_bands <- case_when(age >=17 & age <= 64 ~ "17-64",
+                                     age >=65 & age <= 74 ~ "65-74",
+                                     age >=75 & age <= 84 ~ "75-84",
+                                     age >=85 & age <= 150 ~ "85 plus",
+                                     TRUE ~ "Dummy")
+  return(social_care_age_bands)
+  
+}
 
