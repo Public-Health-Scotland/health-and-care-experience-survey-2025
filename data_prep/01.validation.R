@@ -1,10 +1,11 @@
-# WIP: February 2026
+# WIP: March 2026
 # *****************************************
 #Purpose: Reads in patient level data for HACE 2025 Survey and applies and checks validation rules
 
-#Inputs: Raw data received from contractor -  HA25_Final_Data_v1.xlsx#UPDATE!
+#Inputs: "response_data_from_contractor/HA25_Final_v1.xlsx #Raw data received from contractor -  
+#data_path,"results/q32_comments_recode analysis_25-26.xlsx" Mapping data received from SCAU  
 
-#Outputs: #UPDATE!
+#Outputs: 
 #"Final_unrouted_data.Rds"
 #"anonymised_unvalidated_response_data_for_SG.rds"
 # analysis_output_path,"file_overview_populated_",today(),".xlsx"
@@ -17,14 +18,14 @@ source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
 source("00.functions.R")
 
-#Step 1: Read in unrouted results received from contractor#### 
-contractor_data <- read.xlsx(paste0(data_path,"Results from Contractor/Final data/HA25_Final_Data_v1.xlsx"), sheet = "RESPONSES")
+#Step 1: Read in unrouted responses received from contractor#### 
+contractor_data <- read.xlsx(paste0(data_path,"response_data_from_contractor/HA25_Final_Data_v1.xlsx"), sheet = "RESPONSES")
 
 #Rename Variables as necessary: 
 contractor_data <- contractor_data %>% 
   rename_with(tolower)%>% 
   rename_with(.fn = ~ paste0("q", .),   .cols = matches("^\\d")) %>%      # Rename columns which start with a digit - these are the questions
-  rename(qh_psid = participant.id,#pnumber last year
+  rename(qh_psid = participant.id,#pnumber last survey
          responsereportingdatetime = response.date.time,
          responsecode = response.code,
          responsesubcode = response.sub.code) %>% #need response sub code too?
@@ -47,31 +48,32 @@ contractor_data <- contractor_data %>%
   relocate(patientid_sg, .after = patientid)
 
 #check if the same as before
-hist.file <- readRDS(paste0(data_path,"Results from Contractor/Final data/final_unrouted_data.rds"))
+hist.file <- readRDS(paste0(data_path,"response_data_from_contractor/final_unrouted_data.rds"))
 all.equal(hist.file,contractor_data) 
 #Save out reformatted data
-saveRDS(contractor_data, file=paste0(data_path,"Results from Contractor/Final data/final_unrouted_data.rds") )
+saveRDS(contractor_data, file=paste0(data_path,"response_data_from_contractor/final_unrouted_data.rds"))
 
 #Create anonymised version of unvalidated data as received from QH for SG:
 SGFile <- contractor_data %>% 
   select(-c(qh_psid,patientid)) #Remove PSID(QH patient identifier) & PatientID (PHS patient identifier)
 
 #check if the same as before
-hist.file <- readRDS(paste0(data_path,"Results from Contractor/anonymised_unvalidated_response_data_for_SG.rds"))
+hist.file <- readRDS(paste0(data_path,"response_data_from_contractor/anonymised_unvalidated_response_data_for_SG.rds"))
 all.equal(hist.file,SGFile)
 #Save out anonymised version of unvalidated data for SG
-saveRDS(SGFile, file=paste0(data_path,"Results from Contractor/anonymised_unvalidated_response_data_for_SG.rds"))
-#write_excel_csv(SGFile, "data/Results from Contractor/Final data/anonymised_unvalidated_response_data_for_SG.csv") 
+saveRDS(SGFile, file=paste0(data_path,"response_data_from_contractor/anonymised_unvalidated_response_data_for_SG.rds"))
 
 #Step 2: Read in reformatted responses####
-contractor_data <- readRDS(paste0(data_path,"Results from Contractor/interim_unrouted_data.rds"))
+contractor_data <- readRDS(paste0(data_path,"response_data_from_contractor/final_unrouted_data.rds"))
 
 contractor_data <- contractor_data %>% 
   select(-c(q18,q26)) #Drop the comments columns which are all blank
 
 #Outputs the frequencies of all the question responses
 pre_validation_freq <- apply(contractor_data[questions], MARGIN=2, table)
-questions_in_data <- names(contractor_data)[startsWith(names(contractor_data), "q")]
+questions_in_data <- names(contractor_data)[str_detect(names(contractor_data), "^q\\d+")] #get list of questions in response data
+
+#Check that the response data received matches the created questionnaire lookup
 questions_in_lookup_not_data <- questions[!questions %in% questions_in_data] #this should be empty
 questions_in_data_not_lookup <- questions_in_data[!questions_in_data %in% questions] #this should have only 'other' questions
 
@@ -83,7 +85,7 @@ questions_in_data_not_lookup <- questions_in_data[!questions_in_data %in% questi
 
 #===
 #Rule 2: When did you last contact the GP Practice named on the enclosed letter?####
-rule_table <- data.frame("rule" = c("Rule 2a"), #Set up rule table
+rule_table <- data.frame("rule" = c("Rule 02a"), #Set up rule table
                          "rule_label" = c("If Q1 is blank, and Q2 is not blank – set Q1 to 1"),
                          "value" = sum(is.na(contractor_data$q01) & !is.na(contractor_data$q02),na.rm = TRUE))
 
@@ -99,7 +101,7 @@ q2toq17 <- subset_qs(2,17)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(any_not_empty_f(q2toq17) & (q01 != "1"| is.na(q01)),1,0)) %>% 
-  group_by("rule" = "Rule 2b",
+  group_by("rule" = "Rule 02b",
            "rule_label" = c("If Q1 <> 1 and Q2 to Q17 are not all blank – set Q2 to Q17 to blank")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -119,7 +121,7 @@ q8toq9 <-subset_qs(8,9)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(any_not_empty_f(q8toq9) & q07 %in% c("7",NA),1,0)) %>% 
-  group_by("rule" = c("Rule 3"),
+  group_by("rule" = c("Rule 03"),
            "rule_label" = c("If Q7 = 7 (or blank) and Q8 to Q9 are not all blank – set Q8 to Q9 to blank")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -136,7 +138,7 @@ Rule03_post <- lapply(q8toq9, crosstabs_f,"q07")  #Check frequencies after imple
 ## 4a If Q10 = 1, 2 or 4 and Q11 is not blank – set Q11 to blank.
 
 rule_table <- rule_table %>% 
-  add_row("rule" = c("Rule 4a"),
+  add_row("rule" = c("Rule 04a"),
           "rule_label" = c("If Q10 = 1, 2 or 4 or blank and Q11 is not blank – set Q11 to blank."),
           "value" = sum(if_else(contractor_data$q10 %in% c("1","2","4") & !is.na(contractor_data$q11),1,0)))
 
@@ -150,7 +152,7 @@ Rule04a_post <- lapply("q10", crosstabs_f,"q11")   #Check frequencies after impl
 ## 4b > If Q10 is blank and Q11 is not blank – set Q10 to 3.
 
 rule_table <- rule_table %>% 
-  add_row("rule" = c("Rule 4b"),
+  add_row("rule" = c("Rule 04b"),
           "rule_label" = c("If Q10 is blank and Q11 is not blank – set Q10 to 3."),
           "value" = sum(if_else(is.na(contractor_data$q10) & !is.na(contractor_data$q11),1,0),na.rm = TRUE))
 
@@ -167,7 +169,7 @@ q14atoq14e <-c("q14a","q14b","q14c","q14d","q14e")
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q14f == "1" & any_not_empty_f(q14atoq14e),1,0)) %>% 
-  group_by("rule" = c("Rule 5a"),
+  group_by("rule" = c("Rule 05a"),
            "rule_label" = c("If Q14f = 1 and any of Q14a to Q14e = 1 – set Q14f to blank.")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -186,7 +188,7 @@ q15toq17 <-subset_qs(15,17)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q14f == "1" & any_not_empty_f(q15toq17),1,0)) %>% 
-  group_by("rule" = c("Rule 5b"),
+  group_by("rule" = c("Rule 05b"),
            "rule_label" = c("If Q14f = 1 and Q15 to Q17 are not all blank – set Q15 to Q17 to blank.")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -203,7 +205,7 @@ Rule05b_post <- lapply(q15toq17, crosstabs_f,"q14f")  #Check frequencies after i
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(all_empty_f(q14atoq14e) & any_not_empty_f(q15toq17),1,0)) %>% 
-  group_by("rule" = c("Rule 5c"),
+  group_by("rule" = c("Rule 05c"),
            "rule_label" = c("If none of Q14a-e = 1 then set Q15 to Q17 to blank.")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -228,7 +230,7 @@ q20toq25 <- subset_qs(20,25)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q19 =="2" & any_not_empty_f(q20toq25),1,0)) %>% 
-  group_by("rule" = c("Rule 6a"),
+  group_by("rule" = c("Rule 06a"),
            "rule_label" = c("If Q19 = 2 and Q20 to Q25 are not all blank – set Q20 to Q25 to blank.")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -245,7 +247,7 @@ Rule06a_post <- lapply(q20toq25, crosstabs_f,"q19")  #Check frequencies after im
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(is.na(q19) & any_not_empty_f(q20toq25),1,0)) %>% 
-  group_by("rule" = c("Rule 6b"),
+  group_by("rule" = c("Rule 06b"),
            "rule_label" = c("If Q19 is blank and Q20 to Q25 are not all blank – set Q19 to 1.")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -267,7 +269,7 @@ q27atoq27f <- c("q27a","q27b","q27c","q27d","q27e","q27f")
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q27g == "1" & any_not_empty_f(q27atoq27f),1,0)) %>% 
-  group_by("rule" = c("Rule 7a"),
+  group_by("rule" = c("Rule 07a"),
            "rule_label" = c("If Q27g = 1 and any of Q27a, Q27b, Q27c, Q27d, Q27e or Q27f = 1 – set Q27g to blank.")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -284,7 +286,7 @@ Rule07a_post <- lapply(q27atoq27f, crosstabs_f,"q27g")  #Check frequencies after
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q27h == "1" & any_not_empty_f(q27atoq27f),1,0)) %>% 
-  group_by("rule" = c("Rule 7b"),
+  group_by("rule" = c("Rule 07b"),
            "rule_label" = c("If Q27h = 1 and any of Q27a, Q27b, Q27c, Q27d, Q27e or Q27f = 1 – set Q27h to blank.")) %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -301,7 +303,7 @@ Rule07b_post <- lapply(q27atoq27f, crosstabs_f,"q27h")  #Check frequencies after
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q27g == "1" & q27h == "1",1,0)) %>% 
-  group_by("rule" = "Rule 7c",
+  group_by("rule" = "Rule 07c",
            "rule_label" = "If Q27g = 1 and Q27h = 1 – set Q27h to blank.") %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -320,7 +322,7 @@ q28toq31 <- subset_qs(28,31)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q27g == "1" & any_not_empty_f(q28toq31),1,0)) %>% 
-  group_by("rule" = "Rule 7d",
+  group_by("rule" = "Rule 07d",
            "rule_label" = "If Q27g = 1 – set Q28 to Q31 to blank.") %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -338,7 +340,7 @@ q28toq32 <- subset_qs(28,32)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q27h == "1" & any_not_empty_f(q28toq32),1,0)) %>% 
-  group_by("rule" = "Rule 7e",
+  group_by("rule" = "Rule 07e",
            "rule_label" = "If Q27h = 1 – set Q28 to Q32 to blank.") %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -358,7 +360,7 @@ q27atoq27h <- c("q27a","q27b","q27c","q27d","q27e","q27f","q27g","q27h")
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(all_empty_f(q27atoq27h) & any_not_empty_f(q28toq32),1,0)) %>% 
-  group_by("rule" = "Rule 7f",
+  group_by("rule" = "Rule 07f",
            "rule_label" = "If Q27a to Q27h are all blank (and Q28 to Q32 are not all blank) - set Q28 to Q32 to blank") %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -383,7 +385,7 @@ q34toq37 <-subset_qs(34,37)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q33  %in% c("6",NA) & any_not_empty_f(q34toq37),1,0)) %>% 
-  group_by("rule" = "Rule 8",
+  group_by("rule" = "Rule 08",
            "rule_label" = "If Q33 not in (1,2,3,4,5) and Q34 to Q37 are not all blank – set Q34 to Q37 to blank") %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -396,24 +398,109 @@ contractor_data <- contractor_data %>% #Implement rule:
 
 Rule08_post <- lapply(q34toq37, crosstabs_f,"q33")  #Check frequencies after implementing rule
 
-#Rule 9. Do you have any physical or mental health conditions or illnesses lasting or expected to last 12 months or more? 
+#Rule 9.	Q35. Have you received any support to help with your caring role in the last 12 months?####
+#9a If Q35f = 1 and any of Q35a to Q35e = 1 – set Q35f to blank.
+#9b If Q35g = 1 and any of Q35a to Q35e = 1 – set Q35g to blank.
+#9c If Q35f = 1 and q35g = 1 – set Q35g to blank.
+
+q35toq35 <-subset_qs(35,35)
+q35atoq35e <- q35toq35[!q35toq35 %in% c("q35f","q35g")]
+
+rule_table <- contractor_data %>% 
+  mutate(rule_value = if_else(q35f  == "1" & any_not_empty_f(q35atoq35e),1,0)) %>% 
+  group_by("rule" = "Rule 09a",
+           "rule_label" = "If Q35f = 1 and any of Q35a to Q35e = 1 – set Q35f to blank.") %>% 
+  summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  bind_rows(rule_table)
+
+Rule09a_pre <- lapply(q35atoq35e, crosstabs_f,"q35f")  #Check frequencies before implementing rule
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q35f = if_else(any_not_empty_f(q35atoq35e),NA,q35f))
+
+Rule09a_post <- lapply(q35atoq35e, crosstabs_f,"q35f")  #Check frequencies after implementing rule
+
+rule_table <- contractor_data %>% 
+  mutate(rule_value = if_else(q35g  == "1" & any_not_empty_f(q35atoq35e),1,0)) %>% 
+  group_by("rule" = "Rule 09b",
+           "rule_label" = "If Q35g = 1 and any of Q35a to Q35e = 1 – set Q35g to blank.") %>% 
+  summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  bind_rows(rule_table)
+
+Rule09b_pre <- lapply(q35atoq35e, crosstabs_f,"q35g")  #Check frequencies before implementing rule
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q35g = if_else(any_not_empty_f(q35atoq35e),NA,q35g))
+
+Rule09b_post <- lapply(q35atoq35e, crosstabs_f,"q35g")  #Check frequencies after implementing rule
+
+rule_table <- contractor_data %>% 
+  mutate(rule_value = if_else(q35f  == "1" & q35g  == "1",1,0)) %>% 
+  group_by("rule" = "Rule 09c",
+           "rule_label" = "If Q35f = 1 and q35g = 1 – set Q35g to blank.") %>% 
+  summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  bind_rows(rule_table)
+
+Rule09c_pre <- lapply("q35f", crosstabs_f,"q35g")  #Check frequencies before implementing rule
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q35g = case_when(q35f == "1"~ NA,TRUE ~ q35g))
+
+Rule09c_post <- lapply("q35f", crosstabs_f,"q35g")   #Check frequencies after implementing rule
+
+#Rule 10. Do you have any physical or mental health conditions or illnesses lasting or expected to last 12 months or more? 
 #If Q39 <> 1 (this is equivalent to 2 or NA) (and Q40 & Q41 are not all blank ) - set Q40 and Q41 to blank.  
 q40toq41 <-subset_qs(40,41)
 
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else(q39  %in% c("2",NA) & any_not_empty_f(q40toq41),1,0)) %>% 
-  group_by("rule" = "Rule 9",
+  group_by("rule" = "Rule 10",
            "rule_label" = "If Q39 <> 1 (and Q40 & Q41 are not all blank ) - set Q40 and Q41 to blank") %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
   bind_rows(rule_table)
 
-Rule09_pre <- lapply(q40toq41, crosstabs_f,"q39")  #Check frequencies before implementing rule
+Rule10_pre <- lapply(q40toq41, crosstabs_f,"q39")  #Check frequencies before implementing rule
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(across(all_of(q40toq41),~ case_when(q39 %in% c("2",NA) ~ NA,TRUE ~ .)))
 
-Rule09_post <- lapply(q40toq41, crosstabs_f,"q39")  #Check frequencies after implementing rule
+Rule10_post <- lapply(q40toq41, crosstabs_f,"q39")  #Check frequencies after implementing rule
+
+#Rule 14. Q32: SCAU to manually recode where the free-text response suggests the survey respondent ####
+#should have ticked a different box. SCAU will provide an excel file containing the patientID and 
+#recoded responses to Q32 (1-8/a-h) only for survey respondents who provided a free-text comment in Q32.
+#q32a to q32h in provided file are identical to those in original file so these are not needed
+#Assume NA is same as 0 - no evidence of unmet need
+scau_file <- read.xlsx(paste0(data_path,"results/q32_comments_recode analysis_25-26.xlsx"))%>% 
+  filter(is.na(genuine_other)| genuine_other != "Final assessment") %>%  #remove 2nd header row
+  select(patientid_sg,genuine_other) %>% 
+  mutate(genuine_other = case_when(genuine_other == "0" ~ NA,TRUE ~ genuine_other))
+
+contractor_data <- contractor_data %>% 
+  left_join(scau_file,by = c("patientid_sg"))
+
+rule_table <- contractor_data %>% 
+  mutate(rule_value = if_else((is.na(q32h) & !is.na(genuine_other))|
+                                (!is.na(q32h) & is.na(genuine_other)),1,0)) %>% 
+  group_by("rule" = "Rule 14",
+           "rule_label" = "If Q32h is in conflict with free text provided, recode") %>% 
+  summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  bind_rows(rule_table)
+
+Rule14_pre <- lapply("q32h", crosstabs_f,"genuine_other")  #Check frequencies before implementing rule
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q32h = case_when(is.na(genuine_other) ~ NA,
+                          genuine_other=="1" ~ "1", TRUE ~ "Error")) 
+
+Rule14_post <- lapply("q32h", crosstabs_f,"genuine_other")  #Check frequencies after implementing rule
+contractor_data <- contractor_data %>% 
+  select(-genuine_other) #remove field as now incorporated with q32h
 
 #Rule 9.	Do you have any of the following?####
 ##a > If all of Q39a to Q32k are blank, and Q32jOther has text, set Q32j = 1 
@@ -520,7 +607,7 @@ post_validation_freq <- apply(contractor_data[questions], MARGIN=2, table)
 #TATA Rule: Apply Tick all that apply processing rule. ####
 #Add in variables to get 'tick all that apply' totals 
 #Blanks in TATA variables should be set to "No" (0) unless none of the response options were ticked, in which case all response options should be set to NA.
-information_questions_tata
+
 contractor_data <- contractor_data %>%
   mutate(q08 = case_when(any_not_empty_f(subset_qs(8,8))~ "1", TRUE ~ NA), #if any of the q8 questions are not zero or NA, then q08 (total) = 1, else it is NA
          q14 = case_when(any_not_empty_f(subset_qs(14,14)) ~ "1",TRUE ~ NA), 
@@ -556,15 +643,15 @@ for(i in seq_along(x)) {
 }
 }
 
-write_out_list_f2 <- function(x) {  # function to write list of tables to single excel sheet
-  curr_row <- 1
-  for(i in seq_along(x)) {
-    x = get(x)
-    writeData(template, deparse(substitute(x)),names(x)[i], startCol = 1, startRow = curr_row)
-    writeData(template, deparse(substitute(x)),x[[i]], startCol = 1, startRow = curr_row+1)
-    curr_row <- curr_row + nrow(x[[i]]) + 2
-  }
-}
+# write_out_list_f2 <- function(x) {  # function to write list of tables to single excel sheet
+#   curr_row <- 1
+#   for(i in seq_along(x)) {
+#     x = get(x)
+#     writeData(template, deparse(substitute(x)),names(x)[i], startCol = 1, startRow = curr_row)
+#     writeData(template, deparse(substitute(x)),x[[i]], startCol = 1, startRow = curr_row+1)
+#     curr_row <- curr_row + nrow(x[[i]]) + 2
+#   }
+# }
 
 # write_out_list_f3 <- function(x) {  # function to write list of tables to single excel sheet
 #   curr_row <- 1
@@ -620,8 +707,14 @@ write_out_list_f(Rule07f_post)
 write_out_list_f(Rule07f_pre)
 write_out_list_f(Rule08_post)
 write_out_list_f(Rule08_pre)
-write_out_list_f(Rule09_post)
-write_out_list_f(Rule09_pre)
+write_out_list_f(Rule09a_post)
+write_out_list_f(Rule09a_pre)
+write_out_list_f(Rule09b_post)
+write_out_list_f(Rule09b_pre)
+write_out_list_f(Rule09c_post)
+write_out_list_f(Rule09c_pre)
+write_out_list_f(Rule14_post)
+write_out_list_f(Rule14_pre)
 # write_out_list_f(Rule10a_post)
 # write_out_list_f(Rule10a_pre)
 # write_out_list_f(Rule10b_post)
@@ -647,10 +740,8 @@ all.equal(hist.file,contractor_data)
 
 #Save outfile####
 saveRDS(contractor_data, file=paste0(data_path,"results/data_Validated_results.rds"))
-#write.xlsx(contractor_data, file="data/results/data_Validated_results.xlsx")
 
 #Create and save out anonymised version of validated results for SG:
-# SGFile_Validated_Prov <- contractor_data %>% 
-#   select(-c(qh_psid,patientid)) #Remove PSID(QH patient identifier) & PatientID (PHS patient identifier)
-# saveRDS(SGFile_Validated_Prov, file="data/Results/anonymised_data_Validated_results_for_SG.rds")
-# write_csv(SGFile_Validated_Prov, "data/Results/anonymised_data_Validated_results_for_SG.csv") 
+SGFile_Validated <- contractor_data %>% 
+   select(-c(qh_psid,patientid)) #Remove PSID(QH patient identifier) & PatientID (PHS patient identifier)
+saveRDS(SGFile_Validated, file=paste0(data_path,"results/anonymised_data_Validated_results_for_SG.rds"))

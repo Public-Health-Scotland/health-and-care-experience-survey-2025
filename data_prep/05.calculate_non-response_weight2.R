@@ -5,7 +5,6 @@
 
 #TO DO:
 #Check section definitions
-#We now have in section categories Y, N, and NA - what impact does this have? this does have an impact - have reverted to Y and N only
 
 #Inputs: 
 #data/Results/data_Validated results.rds #created in 01.validation.R
@@ -145,6 +144,7 @@ names(nat_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"nat_weights.rds"))
 all.equal(hist.file,nat_weights)
 saveRDS(nat_weights,paste0(weights_path,"nat_weights.rds"))
+write.xlsx(nat_weights, paste0(weights_path,"nat_weights_",today(),".xlsx"))
 
 #NHS Board weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'
@@ -165,6 +165,7 @@ names(hb_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"hb_weights.rds"))
 all.equal(hist.file,hb_weights)
 saveRDS(hb_weights,paste0(weights_path,"hb_weights.rds"))
+write.xlsx(hb_weights,paste0(weights_path,"hb_weights_",today(),".xlsx"))
 
 #HSCP weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'
@@ -184,6 +185,7 @@ names(hscp_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"hscp_weights.rds"))
 all.equal(hist.file,hscp_weights)
 saveRDS(hscp_weights,paste0(weights_path,"hscp_weights.rds"))
+write.xlsx(hscp_weights,paste0(weights_path,"hscp_weights_",today(),".xlsx"))
 
 #GP Cluster weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'
@@ -205,10 +207,11 @@ names(gpcl_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"gpcl_weights.rds"))
 all.equal(hist.file,gpcl_weights)
 saveRDS(gpcl_weights,paste0(weights_path,"gpcl_weights.rds"))
+write.xlsx(gpcl_weights,paste0(weights_path,"gpcl_weights_",today(),".xlsx"))
 
 #GP weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'
-area_age_sex_population <- readRDS(paste0(weights_path,"gpprac_age_sex_population_2.rds"))
+area_age_sex_population <- readRDS(paste0(weights_path,"gpprac_age_sex_population.rds"))
 
 #Read in the PCIS information, prepared using script '00. reformat_PCIS_rates.R'
 pcis_rates <- readRDS(paste0(lookup_path,"pcis_rates_2_agebands.rds"))
@@ -225,6 +228,7 @@ names(gp_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"gp_weights.rds"))
 all.equal(hist.file,gp_weights)
 saveRDS(gp_weights,paste0(weights_path,"gp_weights.rds"))
+write.xlsx(gp_weights,paste0(weights_path,"gp_weights_",today(),".xlsx"))
 
 #CA weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'
@@ -246,6 +250,7 @@ names(ca_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"ca_weights.rds"))
 all.equal(hist.file,ca_weights)
 saveRDS(ca_weights,paste0(weights_path,"ca_weights.rds"))
+write.xlsx(ca_weights,paste0(weights_path,"ca_weights_",today(),".xlsx"))
 
 #Locality weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'
@@ -267,6 +272,7 @@ names(locality_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"locality_weights.rds"))
 all.equal(hist.file,locality_weights)
 saveRDS(locality_weights,paste0(weights_path,"locality_weights.rds"))
+write.xlsx(locality_weights,paste0(weights_path,"locality_weights_",today(),".xlsx"))
 
 #ca_Locality weights####
 #Read in the eligible population. Lookup file created in 'create reference files from eligible population.R'
@@ -288,3 +294,4 @@ names(ca_locality_weights) <- c("s1",sections2to6) #add appropriate names
 hist.file <- readRDS(paste0(weights_path,"ca_locality_weights.rds"))
 all.equal(hist.file,ca_locality_weights)
 saveRDS(ca_locality_weights,paste0(weights_path,"ca_locality_weights.rds"))
+write.xlsx(ca_locality_weights,paste0(weights_path,"ca_locality_weights_",today(),".xlsx"))

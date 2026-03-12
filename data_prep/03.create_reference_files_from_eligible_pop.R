@@ -71,13 +71,13 @@ eligible <- eligible %>%
   left_join(practice_lookup,by = c("gp_prac_no"))
 
 #2 age groups
-gpprac_age_sex_population_2 <- eligible %>%
+gpprac_age_sex_population <- eligible %>%
   group_by('report_area' = gp_prac_no,sex,'age_band' = age_band_2) %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
-hist.file <- readRDS(paste0(weights_path,"gpprac_age_sex_population_2.rds"))
-all.equal(hist.file,gpprac_age_sex_population_2)
-saveRDS(gpprac_age_sex_population_2,paste0(weights_path,"gpprac_age_sex_population_2.rds"))
+hist.file <- readRDS(paste0(weights_path,"gpprac_age_sex_population.rds"))
+all.equal(hist.file,gpprac_age_sex_population)
+saveRDS(gpprac_age_sex_population_2,paste0(weights_path,"gpprac_age_sex_population.rds"))
 
 gpcl_age_sex_population <- eligible %>%
   group_by('report_area' = practice_hscp_cluster,sex,'age_band' = age_band_2) %>%

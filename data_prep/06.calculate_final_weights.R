@@ -69,10 +69,6 @@ responses <- add_final_weights(s4)
 responses <- add_final_weights(s5) 
 responses <- add_final_weights(s6) 
 
-sections <- unique(weights$section)
-for (section in sections) {
-  responses <- add_final_weights(section)}#this doesn't work
-
 #trim the weights
 responses <- trim_weights("all")
 
