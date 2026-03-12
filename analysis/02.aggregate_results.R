@@ -104,6 +104,9 @@ sum(agg_output$report_area_name == "Error") #check. Should be 0
 #   left_join(sample_size, by = c("level","report_area")) %>% 
 #   mutate(response_rate_perc = forms_completed / net_sample_pop * 100)
 
+#check historical file output
+hist.file = readRDS(paste0(analysis_output_path,"agg_output.rds"))
+all_equal(agg_output,hist.file)
 saveRDS(agg_output,paste0(analysis_output_path,"agg_output.rds"))
 
 
