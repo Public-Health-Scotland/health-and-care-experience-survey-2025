@@ -35,7 +35,7 @@ contractor_data <- contractor_data %>%
          across(all_of(questions), ~ as.character(.))) #all response options as character
 
 #variables for file summary
-summary_file_name <-"HA25_Final_v1.xls"
+summary_file_name <-"HA25_Final_Data_v1.xlsx"
 summary_duplicates <- sum(duplicated(contractor_data$patientid))
 summary_variables <- sapply(contractor_data, class)#Check classification of each column
 response_codes <- tabyl(contractor_data,responsecode,responsesubcode)
