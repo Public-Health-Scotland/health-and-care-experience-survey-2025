@@ -1,5 +1,4 @@
 # *****************************************
-# January 2025 WIP.
 # Name of file: 04.add_historical_data.R
 # Description of content:  Reads in current and links to historical aggregate data and outputs analyses at all levels of reporting.
 # 
@@ -14,7 +13,6 @@ source("00.set_up_file_paths.R")
 source("00.functions.R")
 
 #recode 'no change'?
-#Questions to check Q6 2024 - need to explicitly exclude exclude option, Q6 2018 has multiple mapped response options
 
 ####add on historical data####
 agg_output <- readRDS(paste0(analysis_output_path,"agg_output.rds")) %>% 
@@ -24,9 +22,12 @@ agg_output <- readRDS(paste0(analysis_output_path,"agg_output.rds")) %>%
 
 #create version of lookup which allows mapping by response_text_analysis
 question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds")) 
+question_lookup <- question_lookup %>% #fix for merged option. Data for 2018 recoded from 5 to 4 in reprocessing
+  mutate(response_code_2018 = recode(response_code_2018,"4,5" = "4"))
+
 question_lookup_pnn <- question_lookup %>% 
   filter(question %in% percent_positive_questions) %>% 
-  distinct(question,question_text,question_2024,question_2022,question_2020,question_2018)
+  distinct(topic,question,question_text,question_2024,question_2022,question_2020,question_2018)
 
 #split out pnn questions
 agg_output_pnn <- agg_output %>% filter(question %in% percent_positive_questions) %>% 
@@ -68,15 +69,13 @@ agg_output_info_202122 <- readRDS(paste0(analysis_output_path_all_years,"agg_out
 agg_output_info <- agg_output_info %>% 
   left_join(agg_output_info_202122, by = c("level","report_area","question_2022","response_code_2022"))
 
-#map on 201920 info data. Here, the code is within the response_text_analysis field
+#map on 201920 info data. 
 agg_output_info_201920 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_201920.rds"))
 agg_output_info <- agg_output_info %>% 
   left_join(agg_output_info_201920, by = c("level","report_area","question_2020","response_code_2020" = "response_text_analysis_2020"))
 
-#map on 201718 info data. Here, the code is within the response_text_analysis field
+#map on 201718 info data. 
 agg_output_info_201718 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_201718.rds"))
-agg_output_info_201718 <- agg_output_info_201718 %>% 
-  mutate(response_text_analysis_2018 = trimws(response_text_analysis_2018))
 agg_output_info <- agg_output_info %>% 
   left_join(agg_output_info_201718, by = c("level","report_area","question_2018","response_code_2018" = "response_text_analysis_2018"))
 

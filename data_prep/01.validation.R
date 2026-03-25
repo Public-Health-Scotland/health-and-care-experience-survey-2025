@@ -1,5 +1,3 @@
-# WIP: March 2026
-# *****************************************
 #Purpose: Reads in patient level data for HACE 2025 Survey and applies and checks validation rules
 
 #Inputs: "response_data_from_contractor/HA25_Final_v1.xlsx #Raw data received from contractor -  
@@ -30,7 +28,6 @@ contractor_data <- contractor_data %>%
          responsecode = response.code,
          responsesubcode = response.sub.code) %>% #need response sub code too?
   mutate(responsereportingdatetime = as.Date(responsereportingdatetime, origin = "1899-12-30"), #reformat excel data
-         qh_psid = paste0("P", qh_psid),#Update PSID to include P
          patientid = as.character(patientid),#are there others this needs to apply to?
          across(all_of(questions), ~ as.character(.))) #all response options as character
 
@@ -451,7 +448,7 @@ contractor_data <- contractor_data %>% #Implement rule:
 
 Rule09c_post <- lapply("q35f", crosstabs_f,"q35g")   #Check frequencies after implementing rule
 
-#Rule 10. Do you have any physical or mental health conditions or illnesses lasting or expected to last 12 months or more? 
+#Rule 10. Do you have any physical or mental health conditions or illnesses lasting or expected to last 12 months or more? ####
 #If Q39 <> 1 (this is equivalent to 2 or NA) (and Q40 & Q41 are not all blank ) - set Q40 and Q41 to blank.  
 q40toq41 <-subset_qs(40,41)
 
@@ -470,7 +467,7 @@ contractor_data <- contractor_data %>% #Implement rule:
 
 Rule10_post <- lapply(q40toq41, crosstabs_f,"q39")  #Check frequencies after implementing rule
 
-#Rule 14. Q32: SCAU to manually recode where the free-text response suggests the survey respondent ####
+#Rule 11. Q32: SCAU to manually recode where the free-text response suggests the survey respondent ####
 #should have ticked a different box. SCAU will provide an excel file containing the patientID and 
 #recoded responses to Q32 (1-8/a-h) only for survey respondents who provided a free-text comment in Q32.
 #q32a to q32h in provided file are identical to those in original file so these are not needed
@@ -492,114 +489,21 @@ rule_table <- contractor_data %>%
   ungroup() %>% 
   bind_rows(rule_table)
 
-Rule14_pre <- lapply("q32h", crosstabs_f,"genuine_other")  #Check frequencies before implementing rule
+Rule11_pre <- lapply("q32h", crosstabs_f,"genuine_other")  #Check frequencies before implementing rule
 
 contractor_data <- contractor_data %>% #Implement rule:
   mutate(q32h = case_when(is.na(genuine_other) ~ NA,
                           genuine_other=="1" ~ "1", TRUE ~ "Error")) 
 
-Rule14_post <- lapply("q32h", crosstabs_f,"genuine_other")  #Check frequencies after implementing rule
+Rule11_post <- lapply("q32h", crosstabs_f,"genuine_other")  #Check frequencies after implementing rule
 contractor_data <- contractor_data %>% 
   select(-genuine_other) #remove field as now incorporated with q32h
 
-#Rule 9.	Do you have any of the following?####
-##a > If all of Q39a to Q32k are blank, and Q32jOther has text, set Q32j = 1 
-# Q39. Do you have any physical or mental health conditions or illnesses lasting or expected to last 12 months or more? 
-#   
-#   If they do not tick yes to this question, clear Q40 & Q41. 
-# 
-# If Q39 <> 1 (and Q40 & Q41 are not all blank ) - set Q40 and Q41 to blank.  
-# q34toq37 <-subset_qs(34,37)
-# 
-# rule_table <- rule_table %>% 
-#   add_row("rule" = c("Rule 10a"),
-#           "rule_label" = "If all of Q39a to Q32k are blank, and Q32jOther has text, set Q32j = 1",
-#           "value" = sum(ifelse(rowAll(contractor_data[q39]) & !is.na(contractor_data$q39jOther),1,0),na.rm = TRUE))
-# 
-# contractor_data <- contractor_data %>% #Add helper variable
-#   mutate(q39jOther_text = case_when(is.na(contractor_data$q39jOther) ~ "No text",TRUE ~ "Text"))
-# 
-# Rule10a_pre <- lapply(q39, crosstabs_f,"q39jOther_text")  #Check frequencies before implementing rule
-# 
-# contractor_data <- contractor_data %>% #Implement rule:
-#   mutate(q39j= case_when(rowAll(contractor_data[q39]) & !is.na(contractor_data$q39jOther) ~ 1, TRUE ~ q39j))
-# 
-# Rule10a_post <- lapply(q39, crosstabs_f,"q39jOther_text")  #Check frequencies after implementing rule
+#Rule 12.	Recoding based on free-text responses####
+# Q40, Q43 and Q44: Retain the tick box option. If no boxes ticked, use the free text given to map to one of the options only where the wording matches, i.e. map to ‘white’ if free text is ‘white’. If no match, then treated as ‘N/A’.
+# Q40 - does this need to be coded before rule 10?
+#sometimes it is 'Not at the moment' or just 'No'
 
-# contractor_data <- contractor_data %>%  select(-q39jOther_text)#Drop helper variable
-# 
-# ##b > If any of Q39a to Q39j = 1 and Q39k = 1 – set Q39k to blank. 
-# q39atoq39j <- q39[q39 != "q39k"]
-# rule_table <- rule_table %>% 
-#   add_row("rule" = c("Rule 10b"),
-#           "rule_label" = "If any of Q39a to Q39j = 1 and Q39k = 1 – set Q39k to blank",
-#           "value" = sum(if_else(rowAny(contractor_data[q39atoq39j]) & contractor_data$q39k == 1,1,0),na.rm = TRUE))
-# 
-# Rule10b_pre <- lapply(q39atoq39j, crosstabs_f,"q39k")  #Check frequencies before implementing rule
-# 
-# contractor_data <- contractor_data %>% #Implement rule:
-#   mutate(q39k= case_when(rowAny(contractor_data[q39atoq39j]) ~ NA, TRUE ~ q39k))
-# 
-# Rule10b_post <- lapply(q39atoq39j, crosstabs_f,"q39k")  #Check frequencies after implementing rule
-# 
-# #Rule 11: Which of the following best describes your sexual orientation? #### 
-# ##> If Q42 is blank and Q42 text box (q42Other) is not blank then q42 = 4.
-# rule_table <- rule_table %>% 
-#   add_row("rule" = c("Rule 11"),
-#           "rule_label" = "If Q42 is blank and Q42 text box (q42Other) is not blank then q42 = 4",
-#           "value" = sum(if_else(is.na(contractor_data$q42) & !is.na(contractor_data$q42Other),1,0),na.rm = TRUE))
-# 
-# contractor_data <- contractor_data %>% #Add helper variable
-#   mutate(q42Other_text = case_when(is.na(contractor_data$q42Other) ~ "No text",TRUE ~ "Text"))
-# 
-# Rule11_pre <- lapply("q42", crosstabs_f,"q42Other_text")  #Check frequencies before implementing rule
-# 
-# contractor_data <- contractor_data %>% #Implement rule:
-#   mutate(q42= case_when(is.na(contractor_data$q42) & !is.na(contractor_data$q42Other) ~ 4, TRUE ~ q42))
-# 
-# Rule11_post <- lapply("q42", crosstabs_f,"q42Other_text")  #Check frequencies after implementing rule
-# 
-# contractor_data <- contractor_data %>% select(-q42Other_text) #Drop helper variable
-# 
-# #===
-# #Rule 12: What best describes your ethnic group? Please tick one box only#### 
-# ##> If Q43 is blank and Q43 text box (q43Other) is not blank then q43 = 6.
-# 
-# rule_table <- rule_table %>% 
-#   add_row("rule" = c("Rule 12"),
-#           "rule_label" = "If Q43 is blank and Q43 text box (q43Other) is not blank then q43 = 6",
-#           "value" = sum(if_else(is.na(contractor_data$q43) & !is.na(contractor_data$q43Other),1,0),na.rm = TRUE))
-# 
-# contractor_data <- contractor_data %>% #Add helper variable
-#   mutate(q43Other_text = case_when(is.na(contractor_data$q43Other) ~ "No text",TRUE ~ "Text"))
-# 
-# Rule12_pre <- lapply("q43", crosstabs_f,"q43Other_text")  #Check frequencies before implementing rule
-# 
-# contractor_data <- contractor_data %>% #Implement rule:
-#   mutate(q43= case_when(is.na(contractor_data$q43) & !is.na(contractor_data$q43Other) ~ 6, TRUE ~ q43))
-# 
-# Rule12_post <- lapply("q43", crosstabs_f,"q43Other_text")  #Check frequencies after implementing rule
-# 
-# contractor_data <- contractor_data %>% select(-q43Other_text) #Drop helper variable
-# 
-# # #Rule 13: What religion, religious denomination or body do you belong to? #### 
-# ##> If Q44 is blank and Q44 text box (q44Other) is not blank then q44 = 11.
-# rule_table <- rule_table %>% 
-#   add_row("rule" = c("Rule 13"),
-#           "rule_label" = "If Q44 is blank and Q44 text box (q44Other) is not blank then q44 = 11",
-#           "value" = sum(if_else(is.na(contractor_data$q44) & !is.na(contractor_data$q44Other),1,0),na.rm = TRUE))
-# 
-# contractor_data <- contractor_data %>% #Add helper variable
-#   mutate(q44Other_text = case_when(is.na(contractor_data$q44Other) ~ "No text",TRUE ~ "Text"))
-# 
-# Rule13_pre <- lapply("q44", crosstabs_f,"q44Other_text")  #Check frequencies before implementing rule
-# 
-# contractor_data <- contractor_data %>% #Implement rule:
-#   mutate(q44= case_when(is.na(contractor_data$q44) & !is.na(contractor_data$q44Other) ~ 11, TRUE ~ q44))
-# 
-# Rule13_post <- lapply("q44", crosstabs_f,"q44Other_text")  #Check frequencies after implementing rule
-# 
-# contractor_data <- contractor_data %>% select(-q44Other_text) #Drop helper variable
 
 #This outputs the frequencies of all the question responses
 post_validation_freq <- apply(contractor_data[questions], MARGIN=2, table)
