@@ -20,7 +20,6 @@
 #CH comments. 
 #What are the different sheets in the lookup document?
 #What does Comparability = Tableau mean?
-#Similarly previous scripts used surveysection - now topic 
 #Should we be weighting the chronic pain question this year? Presently it isn't weighted
 #Filter out where iref is '-'?
 #How to deal with Q38  In general, how well do you feel that you are able to look after your own health? In mapping document as PPN question, but preeviously treated as both
@@ -59,12 +58,12 @@ question_lookup <- question_mapping %>%
                                             question_type == "Percent positive" & grepl("neutral",processing) == TRUE ~ "Neutral", 
                                             question_type == "Percent positive" & grepl("exclude",processing) == TRUE ~ "Exclude",
                                             TRUE ~ response_text_analysis))%>%
-  select(iref,question,question_text,weight,response_code,response_text_analysis,topic,question_2024,response_code_2024,
+  select(iref,question,question_type,question_text,question_text_dashboard,weight,response_code,response_text_analysis,topic,question_2024,response_code_2024,
          question_2022,response_code_2022,question_2020,response_code_2020,question_2018,response_code_2018)
 
 #check if the same as before, then save
 hist.file <- readRDS(paste0(lookup_path,"question_lookup.rds"))
-all.equal(hist.file,question_lookup)
+all.equal(hist.file,question_lookup %>% select(-question_text_dashboard))
 saveRDS(question_lookup, paste0(lookup_path,"question_lookup.rds"))
 
 #create vectors of percent positive / information questions
