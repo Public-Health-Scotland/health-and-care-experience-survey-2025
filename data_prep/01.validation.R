@@ -64,8 +64,21 @@ saveRDS(SGFile, file=paste0(data_path,"response_data_from_contractor/anonymised_
 contractor_data <- readRDS(paste0(data_path,"response_data_from_contractor/final_unrouted_data.rds"))
 
 contractor_data <- contractor_data %>% 
-  select(-c(q18,q26)) #Drop the comments columns which are all blank
+  select(-c(q18,q26,q40j_other,q43_other,q44_other)) #Drop the comments columns which are all blank
 
+#read in and process the free text data
+free_text_file <- read.xlsx(paste0(data_path,"response_data_from_contractor/HA25_REDACTED_40j_43_44_v1.xlsx"))
+free_text_file <- free_text_file %>% 
+  rename_with(tolower)%>% 
+  select(-matches("response"),-patientid) %>% 
+  rename(qh_psid = psid) %>% 
+  mutate(qh_psid = paste0("P", qh_psid),
+         across(.cols = matches("other"),.fns = ~ sub("\\.+$", "",.)), #remove trailling '.
+         across(.cols = matches("other"),.fns = ~ tolower(str_trim(.))))
+
+contractor_data <- contractor_data %>% #match on free text data
+  left_join(free_text_file,by = c("qh_psid"))  
+  
 #Outputs the frequencies of all the question responses
 pre_validation_freq <- apply(contractor_data[questions], MARGIN=2, table)
 questions_in_data <- names(contractor_data)[str_detect(names(contractor_data), "^q\\d+")] #get list of questions in response data
@@ -449,7 +462,8 @@ contractor_data <- contractor_data %>% #Implement rule:
 Rule09c_post <- lapply("q35f", crosstabs_f,"q35g")   #Check frequencies after implementing rule
 
 #Rule 10. Do you have any physical or mental health conditions or illnesses lasting or expected to last 12 months or more? ####
-#If Q39 <> 1 (this is equivalent to 2 or NA) (and Q40 & Q41 are not all blank ) - set Q40 and Q41 to blank.  
+#If Q39 <> 1 (this is equivalent to 2 or NA) (and Q40 & Q41 are not all blank) - set Q40 and Q41 to blank.
+#Note that this doesn't overwrite q40j_other
 q40toq41 <-subset_qs(40,41)
 
 rule_table <- contractor_data %>% 
@@ -468,7 +482,7 @@ contractor_data <- contractor_data %>% #Implement rule:
 Rule10_post <- lapply(q40toq41, crosstabs_f,"q39")  #Check frequencies after implementing rule
 
 #Rule 11. Q32: SCAU to manually recode where the free-text response suggests the survey respondent ####
-#should have ticked a different box. SCAU will provide an excel file containing the patientID and 
+#should have ticked a different box. SCAU have provided an excel file containing the patientID and 
 #recoded responses to Q32 (1-8/a-h) only for survey respondents who provided a free-text comment in Q32.
 #q32a to q32h in provided file are identical to those in original file so these are not needed
 #Assume NA is same as 0 - no evidence of unmet need
@@ -483,7 +497,7 @@ contractor_data <- contractor_data %>%
 rule_table <- contractor_data %>% 
   mutate(rule_value = if_else((is.na(q32h) & !is.na(genuine_other))|
                                 (!is.na(q32h) & is.na(genuine_other)),1,0)) %>% 
-  group_by("rule" = "Rule 14",
+  group_by("rule" = "Rule 11",
            "rule_label" = "If Q32h is in conflict with free text provided, recode") %>% 
   summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
   ungroup() %>% 
@@ -501,11 +515,133 @@ contractor_data <- contractor_data %>%
 
 #Rule 12.	Recoding based on free-text responses####
 # Q40, Q43 and Q44: Retain the tick box option. If no boxes ticked, use the free text given to map to one of the options only where the wording matches, i.e. map to ‘white’ if free text is ‘white’. If no match, then treated as ‘N/A’.
-# Q40 - does this need to be coded before rule 10?
-#sometimes it is 'Not at the moment' or just 'No'
+# Rule 12a. Q40 - Condition, effects. Recoding needs to only apply if Q39 == 1, and none of q40 a to j have been ticked.
+q40all <-subset_qs(40,40)
+q40atoq40j <-q40all[!q40all =="q40k"]
 
+recoded_free_text_q40 <- contractor_data %>% #create a file with all the values to be recoded.
+  select(patientid,q39,all_of(q40all),q40j_other_redacted) %>% 
+  filter(q39 == "1" & all_empty_f(q40atoq40j)
+            & !is.na(q40j_other_redacted) & str_replace_all(q40j_other_redacted," ","") != "") %>% 
+  mutate(a = case_when(grepl("vision|blind|sight",q40j_other_redacted) &
+                       !grepl("in future",q40j_other_redacted) ~ "1",TRUE ~ NA),
+       b = case_when(grepl("hearing|deaf",q40j_other_redacted) ~ "1",TRUE ~ NA),
+       c = case_when(grepl("mobility|walk|clim",q40j_other_redacted) &
+                       !grepl("hyper|stop me|but still|in the future|can still run",q40j_other_redacted) ~ "1",TRUE ~ NA),
+       d = case_when(grepl("dexterity|lift|carry",q40j_other_redacted) ~ "1",TRUE ~ NA),
+       e = case_when(grepl("learn|understand|concentrat",q40j_other_redacted) ~ "1",TRUE ~ NA),
+       f = case_when(grepl("memory",q40j_other_redacted) ~ "1",TRUE ~ NA),
+       g = case_when(grepl("mental",q40j_other_redacted) & 
+                       ! grepl("gone now",q40j_other_redacted)~ "1",TRUE ~ NA),
+       h = case_when(grepl("stamina|breath|fatigue",q40j_other_redacted) ~ "1",TRUE ~ NA),
+       i = case_when(grepl("social|behaviour|autism|spectrum|asd|adhd",q40j_other_redacted) ~ "1",TRUE ~ NA)) %>% 
+  filter(!is.na(a)|!is.na(b)|!is.na(c)|!is.na(d)|!is.na(e)|!is.na(f)|!is.na(g)|!is.na(h)|!is.na(i)) %>% 
+  select(patientid,a:i) %>% 
+  mutate(recode = 1) #create a help variable to indicate that q40 is to be recoded
+  
+contractor_data <- contractor_data %>% 
+  left_join(recoded_free_text_q40,by = c("patientid"))
 
-#This outputs the frequencies of all the question responses
+rule_table <- contractor_data %>% 
+  mutate(rule_value = if_else(recode == 1,1,0)) %>% 
+  group_by("rule" = "Rule 12a",
+           "rule_label" = "Recode Q40 according to free text") %>% 
+  summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  bind_rows(rule_table)
+
+Rule12a_pre <- lapply(contractor_data[q40all], tabyl)#Check frequencies before implementing rule
+
+contractor_data <- contractor_data %>% #Implement rule:
+   mutate(q40a = case_when(a == "1" & is.na(q40a) ~ "1",TRUE ~ q40a),
+          q40b = case_when(b == "1" & is.na(q40b) ~ "1",TRUE ~ q40b),
+          q40c = case_when(c == "1" & is.na(q40c) ~ "1",TRUE ~ q40c),
+          q40d = case_when(d == "1" & is.na(q40d) ~ "1",TRUE ~ q40d),
+          q40e = case_when(e == "1" & is.na(q40e) ~ "1",TRUE ~ q40e),
+          q40f = case_when(f == "1" & is.na(q40f) ~ "1",TRUE ~ q40f),
+          q40g = case_when(g == "1" & is.na(q40g) ~ "1",TRUE ~ q40g),
+          q40h = case_when(h == "1" & is.na(q40h) ~ "1",TRUE ~ q40h))
+
+Rule12a_post <- lapply(contractor_data[q40all], tabyl)#Check frequencies after implementing rule
+
+contractor_data <- contractor_data %>% #drop helper variables
+  select(-matches("^[a-z]$"),-recode)
+
+# Rule 12b. Q43: sexual orientation. Recoding only to apply when none of Q43 has been ticked
+table(contractor_data$q43)
+recoded_free_text_q43 <- contractor_data %>% #create a file with all the values to be recoded.
+  select(patientid,q43,q43_other_redacted) %>% 
+  filter(!is.na(q43_other_redacted) & is.na(q43)) %>% 
+  mutate(a = case_when(grepl("straight|hetero",q43_other_redacted) ~ "1",TRUE ~ NA),
+         b = case_when(grepl("gay|lesbian",q43_other_redacted) 
+                                 & !grepl("but ",q43_other_redacted)~ "1",TRUE ~ NA),
+         c = case_when(grepl("bisexual",q43_other_redacted) ~ "1",TRUE ~ NA))%>% 
+  filter(!is.na(a)|!is.na(b)|!is.na(c)) %>% 
+  mutate(recode = 1) %>% 
+  select(patientid,a:c,recode) 
+
+contractor_data <- contractor_data %>% 
+           left_join(recoded_free_text_q43,by = c("patientid"))
+
+rule_table <- contractor_data %>% 
+  mutate(rule_value = if_else(recode == 1,1,0)) %>% 
+  group_by("rule" = "Rule 12b",
+           "rule_label" = "Recode Q43 according to free text") %>% 
+  summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  bind_rows(rule_table)
+
+Rule12b_pre <- list(tabyl(contractor_data,q43) %>%  adorn_totals()) #Check frequencies before implementing rule
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q43 = case_when(a == 1 & is.na(q43) ~ "1",
+                         b == 1 & is.na(q43) ~ "2",
+                         c == 1 & is.na(q43) ~ "3",TRUE ~ q43))
+
+Rule12b_post <- list(tabyl(contractor_data,q43) %>%  adorn_totals()) #Check frequencies after implementing rule
+
+contractor_data <- contractor_data %>% #drop helper variables
+  select(-matches("^[a-z]$"),recode)
+
+# Rule 12c. Q44: ethnicity. Recoding only to apply Q44 has not been ticked
+
+recoded_free_text_q44 <- contractor_data %>% #create a file with all the values to be recoded.
+  select(patientid,q44,q44_other_redacted) %>% 
+  filter(!is.na(q44_other_redacted) & is.na(q44)) %>% 
+  mutate(q44_recode = case_when(grepl("african",q44_other_redacted) ~ "4",
+                   grepl("mixed|multiple",q44_other_redacted) ~ "2",
+                   grepl("white",q44_other_redacted) ~ "1",
+                   grepl("asian",q44_other_redacted) ~ "3",
+                   grepl("caribbean|black",q44_other_redacted) ~ "5",TRUE ~ NA)) %>% 
+  filter(!is.na(q44_recode)) %>% 
+  select(patientid,q44_recode) 
+
+contractor_data <- contractor_data %>% 
+  left_join(recoded_free_text_q44,by = c("patientid"))
+
+rule_table <- contractor_data %>% 
+  mutate(rule_value = if_else(!is.na(q44_recode),1,0)) %>% 
+  group_by("rule" = "Rule 12c",
+           "rule_label" = "Recode Q44 according to free text") %>% 
+  summarise(value = sum(rule_value,na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  bind_rows(rule_table)
+
+Rule12c_pre <- list(tabyl(contractor_data,q44) %>%  adorn_totals()) #Check frequencies before implementing rule
+
+contractor_data <- contractor_data %>% #Implement rule:
+  mutate(q44 = case_when(q44_recode == "1" & is.na(q44) ~ "1",
+                         q44_recode == "2" & is.na(q44) ~ "2",
+                         q44_recode == "3" & is.na(q44) ~ "3",
+                         q44_recode == "4" & is.na(q44) ~ "4" ,
+                         q44_recode == "5" & is.na(q44) ~ "5",TRUE ~ q44))
+
+Rule12c_post <- list(tabyl(contractor_data,q44) %>%  adorn_totals()) #Check frequencies after implementing rule
+
+contractor_data <- contractor_data %>% #drop helper variables
+  select(-q44_recode)
+
+#This outputs the recoded frequencies of all the question responses
 post_validation_freq <- apply(contractor_data[questions], MARGIN=2, table)
 
 #TATA Rule: Apply Tick all that apply processing rule. ####
@@ -546,25 +682,6 @@ for(i in seq_along(x)) {
   curr_row <- curr_row + nrow(x[[i]]) + 2
 }
 }
-
-# write_out_list_f2 <- function(x) {  # function to write list of tables to single excel sheet
-#   curr_row <- 1
-#   for(i in seq_along(x)) {
-#     x = get(x)
-#     writeData(template, deparse(substitute(x)),names(x)[i], startCol = 1, startRow = curr_row)
-#     writeData(template, deparse(substitute(x)),x[[i]], startCol = 1, startRow = curr_row+1)
-#     curr_row <- curr_row + nrow(x[[i]]) + 2
-#   }
-# }
-
-# write_out_list_f3 <- function(x) {  # function to write list of tables to single excel sheet
-#   curr_row <- 1
-#   for(i in seq_along(x)) {
-#     writeData(template, x ,names(get(x))[i], startCol = 1, startRow = curr_row)
-#     writeData(template, x ,get(x)[[i]], startCol = 1, startRow = curr_row+1)
-#     curr_row <- curr_row + nrow(get(x)[[i]]) + 2
-#   }
-# }
 
 ###########################################################################################################################################
 #Complete template####
@@ -617,18 +734,16 @@ write_out_list_f(Rule09b_post)
 write_out_list_f(Rule09b_pre)
 write_out_list_f(Rule09c_post)
 write_out_list_f(Rule09c_pre)
-write_out_list_f(Rule14_post)
-write_out_list_f(Rule14_pre)
-# write_out_list_f(Rule10a_post)
-# write_out_list_f(Rule10a_pre)
-# write_out_list_f(Rule10b_post)
-# write_out_list_f(Rule10b_pre)
-# write_out_list_f(Rule11_post)
-# write_out_list_f(Rule11_pre)
-# write_out_list_f(Rule12_post)
-# write_out_list_f(Rule12_pre)
-# write_out_list_f(Rule13_post)
-# write_out_list_f(Rule13_pre)
+write_out_list_f(Rule10_post)
+write_out_list_f(Rule10_pre)
+write_out_list_f(Rule11_post)
+write_out_list_f(Rule11_pre)
+write_out_list_f(Rule12a_post)
+write_out_list_f(Rule12a_pre)
+write_out_list_f(Rule12b_post)
+write_out_list_f(Rule12b_pre)
+write_out_list_f(Rule12c_post)
+write_out_list_f(Rule12c_pre)
 
 writeData(template, "summary", today(), startCol = 2, startRow = 4, colNames = FALSE)
 writeData(template, "summary", summary_file_name, startCol = 2, startRow = 5, colNames = FALSE)
