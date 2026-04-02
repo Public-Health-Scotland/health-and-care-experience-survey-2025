@@ -95,6 +95,7 @@ questions_in_data_not_lookup <- questions_in_data[!questions_in_data %in% questi
 
 #===
 #Rule 2: When did you last contact the GP Practice named on the enclosed letter?####
+## a > If Q1 is blank and Q2 is not blank - set Q1 to 1
 rule_table <- data.frame("rule" = c("Rule 02a"), #Set up rule table
                          "rule_label" = c("If Q1 is blank, and Q2 is not blank – set Q1 to 1"),
                          "value" = sum(is.na(contractor_data$q01) & !is.na(contractor_data$q02),na.rm = TRUE))
@@ -174,7 +175,7 @@ contractor_data <- contractor_data %>% #Implement rule:
 Rule04b_post <- lapply("q10", crosstabs_f,"q11")   #Check frequencies after implementing rule
 
 #Rule 5: the last time you received treatment or advice at your General Practice in the last 12 months. What was it for? ####
-
+##a > If Q14f = 1 and any of Q14a to Q14e = 1 – set Q14f to blank. 
 q14atoq14e <-c("q14a","q14b","q14c","q14d","q14e")
 
 rule_table <- contractor_data %>% 
@@ -560,7 +561,8 @@ contractor_data <- contractor_data %>% #Implement rule:
           q40e = case_when(e == "1" & is.na(q40e) ~ "1",TRUE ~ q40e),
           q40f = case_when(f == "1" & is.na(q40f) ~ "1",TRUE ~ q40f),
           q40g = case_when(g == "1" & is.na(q40g) ~ "1",TRUE ~ q40g),
-          q40h = case_when(h == "1" & is.na(q40h) ~ "1",TRUE ~ q40h))
+          q40h = case_when(h == "1" & is.na(q40h) ~ "1",TRUE ~ q40h),
+          q40i = case_when(i == "1" & is.na(q40i) ~ "1",TRUE ~ q40i))
 
 Rule12a_post <- lapply(contractor_data[q40all], tabyl)#Check frequencies after implementing rule
 
