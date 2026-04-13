@@ -21,9 +21,7 @@ source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
 source("00.functions.R")
 
-#MAIN REPORTING DASHBOARD PREP####
-# 1. Read in data and make adjustments for use in dashboard --------------------
-
+#read in question lookup####
 question_lookup <- readRDS(paste0(lookup_path,"question_lookup.rds")) 
 
 #Create response rate data###
@@ -50,21 +48,21 @@ rr_data <- forms_completed_list %>%
   left_join(sample_size_net_of_pse, by = c("level","report_area")) %>% 
   mutate(response_rate_perc = forms_completed / net_sample_pop * 100)
 
-
-#Step 2. Create data by area file
+#create data by area file
 agg_output_full <- readRDS(paste0(analysis_output_path,"agg_output_full.rds")) 
 
-#Suppress data for questions with fewer than 20 responses.
-agg_output_full <- agg_output_full %>% 
-  mutate(across(.cols = matches("2026") & !matches("n_included"), ~ case_when(n_includedresponses_2026 < 20 ~ NA,TRUE ~ .)))
-
-data_by_area <- readRDS(paste0(analysis_output_path,"agg_output_full.rds")) %>% 
+data_by_area <- agg_output_full %>% 
+  #Suppress data for questions with fewer than 20 responses.
+  mutate(across(.cols = matches("2026") & !matches("n_included"), ~ case_when(n_includedresponses_2026 < 20 ~ NA,TRUE ~ .))) %>% 
+  #add on response rates
+  left_join(rr_data, by = c("level","report_area")) %>% 
+  #tidy topic and question text from lookup
   select(-c("topic","question_text")) %>%
   left_join(question_lookup %>% distinct(question,question_text_dashboard,topic), by = c("question")) %>% 
-  left_join(rr_data, by = c("level","report_area")) %>% 
-  filter(topic != "About You") %>%
-  mutate(topic = str_replace(topic,"practice","Practice"),
-         report_area_name = case_when(level == "HSCP" ~ paste0(report_area_name," ",level),
+  mutate(topic = str_replace(topic,"practice","Practice")) %>% 
+  filter(topic != "About You" & #remove About you section from dashboard
+         !(level %in% c("GP","GPCL") & !grepl("GP",topic))) %>% #only show GP level data for the GP topics
+  mutate(report_area_name = case_when(level == "HSCP" ~ paste0(report_area_name," ",level),
                                       level == "GPCL" ~ paste0(report_area_name," Cluster"),
                                       TRUE ~ report_area_name),
          response_code = case_when(response_text_analysis == "Postive" ~ "1", #add codes for PNN to ensure correct sorting
@@ -93,6 +91,10 @@ data_by_area$question_text_wrapped <- sapply(data_by_area$question_text_dashboar
                                              FUN = function(question_text_dashboard) {paste(strwrap(question_text_dashboard, width = 50), collapse = "<br>")})
 
 data_by_area <- data_by_area %>% 
+  #ensure CIs all in the range (0,100)
+  mutate(across(.cols = matches("_low"),.fns = ~ if_else(.x < 0, 0,.)), #check this 
+         across(.cols = matches("_upp"),.fns = ~ if_else(.x > 100, 100,.))) %>% 
+  #formatting for CIs
   mutate(ci_2026 = if_else(!is.na(wgt_percent_2026),paste0("(", round(wgt_percent_low_2026, 2)," - ",round(wgt_percent_upp_2026, 2),")"),""),
          ci_2024 = if_else(!is.na(wgt_percent_2024),paste0("(", round(wgt_percent_low_2024, 2)," - ",round(wgt_percent_upp_2024, 2),")"),""),
          ci_2022 = if_else(!is.na(wgt_percent_2022),paste0("(", round(wgt_percent_low_2022, 2)," - ",round(wgt_percent_upp_2022, 2),")"),""),
@@ -134,7 +136,6 @@ pp_data <- data_by_area %>% ungroup() %>%
 
 pp_data <- pp_data %>% ungroup()
 
-tabyl(data_by_area_summary,level,question)
 #read in Practice lookup
 practice_lookup <- readRDS(paste0(lookup_path,"practice_lookup.rds")) 
 practice_lookup <- practice_lookup %>% 
