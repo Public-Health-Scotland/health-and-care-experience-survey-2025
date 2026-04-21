@@ -10,8 +10,10 @@
 #Inputs: 
 #lookup_path,"question_lookup.rds"
 #analysis_output_path,"agg_output_full.rds" - created in 03.add_historical_data
-#analysis_output_path,"responses_with_categories.rds" - created in 
+#analysis_output_path,"responses_with_categories.rds" #created in 05.calculate_non_response_weight2.R
 #lookup_path,"practice_lookup.rds" - created in ...
+#"analysis_output_path,"sample_size_net_of_pse.rds" - script 02.create_patient_info_files_from_sample
+#"output/temp/forms_completed_list.rds" - created in script 01.create_responses_longer
 
 #Outputs: 
 # dashboard_path,"data_by_area.rds"
@@ -64,10 +66,13 @@ data_by_area <- agg_output_full %>%
          !(level %in% c("GP","GPCL") & !grepl("GP",topic))) %>% #only show GP level data for the GP topics
   mutate(report_area_name = case_when(level == "HSCP" ~ paste0(report_area_name," ",level),
                                       level == "GPCL" ~ paste0(report_area_name," Cluster"),
-                                      TRUE ~ report_area_name),
-         response_code = case_when(response_text_analysis == "Postive" ~ "1", #add codes for PNN to ensure correct sorting
+                                      TRUE ~ report_area_name))
+data_by_area <- data_by_area %>% 
+           mutate(response_code = case_when(response_text_analysis == "Positive" ~ "1", #add codes for PNN to ensure correct sorting
                                    response_text_analysis == "Neutral" ~ "2",
-                                   response_text_analysis == "Negative" ~ "3", TRUE ~ response_code),
+                                   response_text_analysis == "Negative" ~ "3", 
+                                   substr(question,1,3) %in% information_questions_tata ~ substr(question,4,5), #fix codes for TATA to ensure correct sorting
+                                   TRUE ~ response_code),
          response_text_dashboard = response_text_analysis,
          question = case_when(substr(question,1,3) %in% information_questions_tata ~ substr(question,1,3), TRUE ~ question),
          question = paste0(toupper(substr(question,1,1)),substr(question,2,nchar(question))),
@@ -75,7 +80,7 @@ data_by_area <- agg_output_full %>%
          #format numerical columns
          across(.cols = matches("perc"),.fns = ~ .*100),   # percentages to be shown out of 100
          across(.cols = matches("upp|low"),.fns = ~ round(.x, 2)), # rounding function for CIs
-         across(.cols = !matches("upp|low") & matches("perc"),.fns = ~ round(.x, 1)),   # rounding function for other percentages
+         across(.cols = !matches("upp|low") & matches("perc"),.fns = ~ round(.x, 2)),   # rounding function for other percentages, although still needs rounded to no decimal places
          across(.cols = c(n_includedresponses_2026),#Format to have numeric comma in position (where appropriate)
                 .fns = ~ prettyNum(.x, big.mark = ",", scientific = FALSE))) %>% 
   select(-c("response_text_analysis"))
@@ -90,18 +95,38 @@ data_by_area <- data_by_area %>%
 data_by_area$question_text_wrapped <- sapply(data_by_area$question_text_dashboard, 
                                              FUN = function(question_text_dashboard) {paste(strwrap(question_text_dashboard, width = 50), collapse = "<br>")})
 
+round_f <- function(x, k) {
+  trimws(format(round(x, k), nsmall = k))}
+
 data_by_area <- data_by_area %>% 
-  #ensure CIs all in the range (0,100)
-  mutate(across(.cols = matches("_low"),.fns = ~ if_else(.x < 0, 0,.)), #check this 
+  mutate(across(.cols = matches("_low"),.fns = ~ if_else(.x < 0, 0,.)), #ensure CIs all in the range (0,100)
          across(.cols = matches("_upp"),.fns = ~ if_else(.x > 100, 100,.))) %>% 
   #formatting for CIs
-  mutate(ci_2026 = if_else(!is.na(wgt_percent_2026),paste0("(", round(wgt_percent_low_2026, 2)," - ",round(wgt_percent_upp_2026, 2),")"),""),
-         ci_2024 = if_else(!is.na(wgt_percent_2024),paste0("(", round(wgt_percent_low_2024, 2)," - ",round(wgt_percent_upp_2024, 2),")"),""),
-         ci_2022 = if_else(!is.na(wgt_percent_2022),paste0("(", round(wgt_percent_low_2022, 2)," - ",round(wgt_percent_upp_2022, 2),")"),""),
-         ci_2020 = if_else(!is.na(wgt_percent_2020),paste0("(", round(wgt_percent_low_2020, 2)," - ",round(wgt_percent_upp_2020, 2),")"),""),
-         ci_2018 = if_else(!is.na(wgt_percent_2018),paste0("(", round(wgt_percent_low_2018, 2)," - ",round(wgt_percent_upp_2018, 2),")"),"")) %>% 
+  mutate(ci_2026 = if_else(!is.na(wgt_percent_2026),paste0("(", round_f(wgt_percent_low_2026, 2)," - ",round_f(wgt_percent_upp_2026, 2),")"),""),
+         ci_2024 = if_else(!is.na(wgt_percent_2024),paste0("(", round_f(wgt_percent_low_2024, 2)," - ",round_f(wgt_percent_upp_2024, 2),")"),""),
+         ci_2022 = if_else(!is.na(wgt_percent_2022),paste0("(", round_f(wgt_percent_low_2022, 2)," - ",round_f(wgt_percent_upp_2022, 2),")"),""),
+         ci_2020 = if_else(!is.na(wgt_percent_2020),paste0("(", round_f(wgt_percent_low_2020, 2)," - ",round_f(wgt_percent_upp_2020, 2),")"),""),
+         ci_2018 = if_else(!is.na(wgt_percent_2018),paste0("(", round_f(wgt_percent_low_2018, 2)," - ",round_f(wgt_percent_upp_2018, 2),")"),"")) %>% 
   ungroup()
 
+#if CI = (0.00 - 0.00) or (100.00) then CI, wgt_percent_low and wgt_percent_upp = ("-")
+data_by_area <- data_by_area %>% 
+    mutate(ci_2026 = case_when(grepl("NA",ci_2026) ~ "-",
+                           ci_2026 == "(100 - 100)" ~ "-",
+                           TRUE ~ ci_2026),
+       ci_2024 = case_when(grepl("NA",ci_2024) ~ "-",
+                           ci_2024 == "(100 - 100)" ~ "-",
+                           TRUE ~ ci_2024),
+       ci_2022 = case_when(grepl("NA",ci_2022) ~ "-",
+                           ci_2022 == "(100 - 100)" ~ "-",
+                           TRUE ~ ci_2022),
+       ci_2020 = case_when(grepl("NA",ci_2020) ~ "-",
+                           ci_2020 == "(100 - 100)" ~ "-",
+                           TRUE ~ ci_2020),
+       ci_2018 = case_when(grepl("NA",ci_2018) ~ "-",
+                           ci_2018 == "(100 - 100)" ~ "-",
+                           TRUE ~ ci_2018))
+                           
 saveRDS(data_by_area, paste0(dashboard_path,"data_by_area.rds"))
 
 rr_data <- rr_data %>% 
