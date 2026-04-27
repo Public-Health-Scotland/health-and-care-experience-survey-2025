@@ -33,8 +33,13 @@ question_lookup_pnn <- question_lookup %>%
 agg_output_pnn <- agg_output %>% filter(question %in% percent_positive_questions) %>% 
   left_join(question_lookup_pnn,by = c("question"))
 
-#map on 202324 pnn data 
-agg_output_pnn_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_pnn_202324.rds"))
+# #map on 202324 pnn data 
+# agg_output_pnn_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_pnn_202324.rds"))
+# agg_output_pnn <- agg_output_pnn %>% 
+#   left_join(agg_output_pnn_202324, by = c("level","report_area","question_2024","response_text_analysis" = "response_text_analysis_2024"))
+
+#map on 202324 pnn data , removing GP and GPCL level data 
+agg_output_pnn_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_pnn_202324.rds"))%>% filter(!level %in% c("GP","GPCL"))
 agg_output_pnn <- agg_output_pnn %>% 
   left_join(agg_output_pnn_202324, by = c("level","report_area","question_2024","response_text_analysis" = "response_text_analysis_2024"))
 
@@ -59,8 +64,13 @@ agg_output_pnn <- agg_output_pnn %>%
 agg_output_info <- agg_output %>% filter(question %in% information_questions) %>% 
   left_join(question_lookup,by = c("question","response_text_analysis"))
 
-#map on 202324 info data 
-agg_output_info_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_202324.rds"))
+# #map on 202324 info data 
+# agg_output_info_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_202324.rds"))
+# agg_output_info <- agg_output_info %>% 
+#   left_join(agg_output_info_202324, by = c("level","report_area","question_2024","response_code_2024"))
+
+#map on 202324 info data, removing GP and GPCL level data 
+agg_output_info_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_202324.rds")) %>% filter(!level %in% c("GP","GPCL"))
 agg_output_info <- agg_output_info %>% 
   left_join(agg_output_info_202324, by = c("level","report_area","question_2024","response_code_2024"))
 
@@ -82,6 +92,19 @@ agg_output_info <- agg_output_info %>%
 #bring PNN and aggregate questions back together
 agg_output_full <- agg_output_info %>% 
   bind_rows(agg_output_pnn)
+
+##ml added start
+#replace NA with 0 for valid historical questions 
+agg_output_full <- agg_output_full %>% 
+  mutate(wgt_percent_2024 = case_when(!question_2024 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2024,0),
+                                      TRUE ~ wgt_percent_2024),
+         wgt_percent_2022 = case_when(!question_2022 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2022,0),
+                                      TRUE ~ wgt_percent_2022),
+         wgt_percent_2020 = case_when(!question_2020 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2020,0),
+                                      TRUE ~ wgt_percent_2020),
+         wgt_percent_2018 = case_when(!question_2018 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2018,0),
+                                      TRUE ~ wgt_percent_2018)) 
+#ml added end
 
 #re-order and keep only required variables
 agg_output_full <- agg_output_full %>% 
