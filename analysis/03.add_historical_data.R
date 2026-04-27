@@ -12,8 +12,6 @@ source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
 source("00.functions.R")
 
-#recode 'no change'?
-
 ####add on historical data####
 agg_output <- readRDS(paste0(analysis_output_path,"agg_output.rds")) %>% 
   rename_with(.fn = ~ paste0(.,"_2026"),  .cols = where(is.numeric))   #rename to identify as being from 202526
@@ -33,8 +31,8 @@ question_lookup_pnn <- question_lookup %>%
 agg_output_pnn <- agg_output %>% filter(question %in% percent_positive_questions) %>% 
   left_join(question_lookup_pnn,by = c("question"))
 
-#map on 202324 pnn data 
-agg_output_pnn_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_pnn_202324.rds"))
+#map on 202324 pnn data , removing GP and GPCL level data 
+agg_output_pnn_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_pnn_202324.rds"))%>% filter(!level %in% c("GP","GPCL"))
 agg_output_pnn <- agg_output_pnn %>% 
   left_join(agg_output_pnn_202324, by = c("level","report_area","question_2024","response_text_analysis" = "response_text_analysis_2024"))
 
@@ -59,8 +57,8 @@ agg_output_pnn <- agg_output_pnn %>%
 agg_output_info <- agg_output %>% filter(question %in% information_questions) %>% 
   left_join(question_lookup,by = c("question","response_text_analysis"))
 
-#map on 202324 info data 
-agg_output_info_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_202324.rds"))
+#map on 202324 info data, removing GP and GPCL level data 
+agg_output_info_202324 <- readRDS(paste0(analysis_output_path_all_years,"agg_output_info_202324.rds")) %>% filter(!level %in% c("GP","GPCL"))
 agg_output_info <- agg_output_info %>% 
   left_join(agg_output_info_202324, by = c("level","report_area","question_2024","response_code_2024"))
 
@@ -83,6 +81,17 @@ agg_output_info <- agg_output_info %>%
 agg_output_full <- agg_output_info %>% 
   bind_rows(agg_output_pnn)
 
+#replace NA with 0 for valid historical questions
+agg_output_full <- agg_output_full %>% 
+  mutate(wgt_percent_2024 = case_when(!question_2024 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2024,0),
+                                      TRUE ~ wgt_percent_2024),
+         wgt_percent_2022 = case_when(!question_2022 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2022,0),
+                                      TRUE ~ wgt_percent_2022),
+         wgt_percent_2020 = case_when(!question_2020 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2020,0),
+                                      TRUE ~ wgt_percent_2020),
+         wgt_percent_2018 = case_when(!question_2018 %in% c("","-") & level %in% c("Scotland","Health Board","HSCP") ~ replace_na(wgt_percent_2018,0),
+                                      TRUE ~ wgt_percent_2018)) 
+  
 #re-order and keep only required variables
 agg_output_full <- agg_output_full %>% 
   select(level,report_area,report_area_name,
@@ -97,7 +106,6 @@ agg_output_full <- agg_output_full %>%
   
 hist.file <- readRDS(paste0(analysis_output_path,"agg_output_full.rds"))
 all.equal(agg_output_full,hist.file)
-all.equal(agg_output_full$wgt_percent_2018,hist.file$wgt_percent_2018)
 saveRDS(agg_output_full, paste0(analysis_output_path,"agg_output_full.rds"))
 
 write_csv(agg_output_full, paste0(analysis_output_path,"agg_output_full_",today(),".csv"))
