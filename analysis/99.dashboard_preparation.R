@@ -18,6 +18,7 @@
 #Outputs: 
 # dashboard_path,"data_by_area.rds"
 # dashboard_path,"rr_data.rds"
+# dashboard_path,"data_by_area_summary.rds"
 
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
@@ -179,7 +180,5 @@ data_by_area_summary <- data_by_area_summary %>%
 
 data_by_area_summary <- data_by_area_summary %>% 
   left_join(pp_data, by = c("positive_hb_name","question"))
-
-saveRDS(pp_data, paste0(dashboard_path,"pp_data.rds"))
 
 saveRDS(data_by_area_summary, paste0(dashboard_path,"data_by_area_summary.rds"))
