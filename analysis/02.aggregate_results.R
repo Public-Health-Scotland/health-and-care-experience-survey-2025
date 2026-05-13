@@ -75,6 +75,10 @@ agg_output <- agg_output %>%
   #Code to deal with 'tick all that apply' questions.Removes the "No" response to the "tick all that apply" questions
   filter(!(substr(question,1,3) %in% information_questions_tata & response_text_analysis == "No"))
 
+saveRDS(agg_output,paste0(analysis_output_path,"agg_output_interim.rds"))
+
+agg_output <- readRDS(paste0(analysis_output_path,"agg_output_interim.rds"))
+
 #Expand to ensure all possible combinations of report area, question and response option are present in the output.####
 #Create an lookup table of the required rows, then use to create a master table to ensure all possible option combinations exist
 question_lookup_short <- readRDS(paste0(lookup_path,"question_lookup.rds")) %>% 
@@ -112,15 +116,17 @@ sum(agg_output_expanded$report_area_name == "Error") #check. Should be 0
 #tidy to fill in the gaps where expand has left NAs
 agg_output_expanded <- agg_output_expanded %>% 
   mutate(across(c("n_response", "n_wgt_response","percent", "wgt_percent"), ~ replace_na(., 0))) %>% 
-  group_by(level,report_area,question) %>% 
-  mutate(n_includedresponses_alt =  sum(n_response),
-         n_wgt_includedresponses_alt = sum(n_wgt_response)) %>% 
+  mutate(question_agg = case_when(substr(question,1,3) %in% information_questions_tata ~ substr(question,1,3), TRUE ~ question)) %>% #deal correctly with 'tick all that apply' type questions
+  group_by(level,report_area,question_agg) %>% 
+  mutate(n_includedresponses_alt =  max(n_includedresponses, na.rm = T),
+         n_wgt_includedresponses_alt = max(n_wgt_includedresponses, na.rm = T)) %>% 
   mutate(n_includedresponses= coalesce(n_includedresponses,n_includedresponses_alt),
          n_wgt_includedresponses = coalesce(n_wgt_includedresponses,n_wgt_includedresponses_alt)) %>% 
-  select(-matches("alt"))
+  mutate(across(c("n_includedresponses", "n_wgt_includedresponses"), ~replace(., is.infinite(.), 0))) %>% ungroup() %>% 
+  select(-matches("alt|_agg"))
 
 #check historical file output and save out
-hist.file = readRDS(paste0(analysis_output_path,"agg_output.rds")) 
+hist.file = readRDS(paste0(analysis_output_path,"agg_output.rds"))
 all.equal(agg_output_expanded,hist.file)
 saveRDS(agg_output_expanded,paste0(analysis_output_path,"agg_output.rds"))
 
