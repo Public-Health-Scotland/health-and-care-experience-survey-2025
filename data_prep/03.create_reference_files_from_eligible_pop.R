@@ -77,13 +77,14 @@ gpprac_age_sex_population <- eligible %>%
 #check if the same as before
 hist.file <- readRDS(paste0(weights_path,"gpprac_age_sex_population.rds"))
 all.equal(hist.file,gpprac_age_sex_population)
-saveRDS(gpprac_age_sex_population_2,paste0(weights_path,"gpprac_age_sex_population.rds"))
+saveRDS(gpprac_age_sex_population,paste0(weights_path,"gpprac_age_sex_population.rds"))
 
 gpcl_age_sex_population <- eligible %>%
   group_by('report_area' = practice_hscp_cluster,sex,'age_band' = age_band_2) %>%
   summarise(eligible_population = n(),.groups = 'drop')
 #check if the same as before
-hist.file <- readRDS("output/weights/gpcl_age_sex_population.rds")
+#hist.file <- readRDS("output/weights/gpcl_age_sex_population.rds")
+hist.file <- readRDS(paste0(weights_path,"gpcl_age_sex_population.rds"))
 all.equal(hist.file,gpcl_age_sex_population)
 saveRDS(gpcl_age_sex_population,paste0(weights_path,"gpcl_age_sex_population.rds"))
 
