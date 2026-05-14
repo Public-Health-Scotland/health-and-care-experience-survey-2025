@@ -17,13 +17,6 @@
 #"lookups/percent_positive_questions.rds"
 #"lookups/information_questions_tata.rds"
 
-#CH comments. 
-#What are the different sheets in the lookup document?
-#What does Comparability = Tableau mean?
-#Should we be weighting the chronic pain question this year? Presently it isn't weighted
-#Filter out where iref is '-'?
-#How to deal with Q38  In general, how well do you feel that you are able to look after your own health? In mapping document as PPN question, but preeviously treated as both
-
 source("00.set_up_packages.R")
 source("00.set_up_file_paths.R")
 
@@ -60,6 +53,8 @@ question_lookup <- question_mapping %>%
                                             TRUE ~ response_text_analysis))%>%
   select(iref,question,question_type,question_text,question_text_dashboard,weight,response_code,response_text_analysis,topic,question_2024,response_code_2024,
          question_2022,response_code_2022,question_2020,response_code_2020,question_2018,response_code_2018)
+
+#Note that this code does not take account of 'exclude' for information questions. In 2025/26, Q5 had code 4 - 'I am not sure what the opening hours are' excluded be the dashboard retains this option.
 
 #check if the same as before, then save
 hist.file <- readRDS(paste0(lookup_path,"question_lookup.rds"))
